@@ -1,7 +1,58 @@
 # 架构决策记录（ADR）
 
 > 记录 hq-push-gate 的关键技术决策，并解决原始调研记录（xuq.md）中遗留的矛盾点。
-> 状态标记：已采纳 / 已否决 / 待定
+> 状态标记：已采纳 / 已否决 / 待定（V2.1 补充批次与补录 ADR 另有"已实施"变体，语义 = 已采纳且落地）
+>
+> **编号说明**：ADR-031 物理位置在 018~030 之前（V2.1 冻结补充节），属历史编号错位，引用以编号为准。
+> 细化关系：015⊃007、016⊃002、013⊃008、036⊃005、037⊃010、038⊃006——查"主决策"以被细化条目为准。
+
+## ADR 索引（41 条，按主题分组）
+
+| 编号 | 主题 | 一句话结论 |
+|---|---|---|
+| 001 | 部署 | 生产底座缩容部署，不追全量生产拓扑 |
+| 018 | 部署 | 验收资源分层：dev 功能闭环 / benchmark-small / benchmark-large |
+| 002 | 存储 | CK 存明细 + Doris 查询层，两层不可互替 |
+| 016 | 存储 | Doris 3.x LTS 主选，StarRocks 为性能逃生门 |
+| 003 | 存储 | 入库独立消费任务（ingest-worker），与 Flink 解耦 |
+| 023 | 存储 | MySQL U0~U3 不分库分表，按档位逐级扩展 |
+| 004 | 可靠性 | 规则同步：Kafka 广播为主 + Debezium 对账兜底 |
+| 019 | 可靠性 | 告警 event_id/delivery_id + alert-inbox + cursor 补拉 + ACK |
+| 020 | 可靠性 | 固定 64 分区 ws_push，不按实例动态建 Topic |
+| 026 | 可靠性 | 业务事件走 MySQL Outbox（U0 按 id 轮询，U2 SKIP LOCKED） |
+| 029 | 可靠性 | gateway_slot 租约 fencing 防旧实例脑裂 |
+| 027 | 可靠性 | 灾备 RPO/RTO 目标与跨 AZ 演练分期 |
+| 028 | 可靠性 | Flink checkpoint S3 外部存储 + savepoint 发布（U2 生产化） |
+| 030 | 可靠性 | Kafka Schema 冻结 + 生产可靠性（acks/幂等 U2 起） |
+| 009 | 实时链路 | quote-push 独立扇出服务，不进 Flink |
+| 021 | 实时链路 | 规则广播与用户投递解耦（RuleMsg 不带 user_ids） |
+| 014 | 连接层 | 百万 WS 连接：Go 连接层 + 集群化 + 分级推送 |
+| 040 | 连接层 | token 吊销语义 + WS 套餐 5min 复核（B22 落地） |
+| 041 | 连接层 | 掘金式订阅：kline 扇出归属 quote-push、channels 路由（B21） |
+| 022 | 安全 | 公网 TLS 在 APISIX、WS 鉴权边界在 ws-gateway |
+| 033 | 安全 | JWT claim 契约三方对齐（uid/typ/key，B17） |
+| 034 | 安全 | 开放面 AK/SK 签名 + WS ticket（B18） |
+| 035 | 安全 | 渠道凭据密文化 HQ_MASTER_KEYS/AES-GCM/KID（B16） |
+| 006 | 渠道 | 自建 WS 集群为核心，其余渠道适配器化 |
+| 038 | 渠道 | SMS/IM/webhook 三通道实装接线（B16） |
+| 010 | AI | LLM 仅做 NL→条件翻译，执行下推（防幻觉） |
+| 037 | AI | LLM 多提供商网关（加权轮询/熔断/日配额，B16） |
+| 039 | 商业化 | 计量与审计数据表 open_usage_log/admin_audit_log（B18/19） |
+| 005 | 数据源 | AKShare 历史灌数 + 自研模拟 tick 发生器 |
+| 036 | 数据源 | 数据源演进：东财实时 + Baostock 回填（取代 005 主力位） |
+| 007 | 网关 | 独立 APISIX 集群 |
+| 015 | 网关 | APISIX 细化（否决 Spring Cloud Gateway/自研 Go） |
+| 011 | 序列化 | 内部 Protobuf，对外 REST/WS JSON |
+| 012 | 实验 | 压测与混沌为内建能力（论文核心） |
+| 017 | 选型 | 全栈技术选型冻结总表 V2.2（快照，基线以 031 为准） |
+| 031 | 选型 | 运行时与中间件版本基线（权威） |
+| 008 | 前端 | pnpm/npm monorepo 双端 + 共享 SDK |
+| 013 | 前端 | 纯 H5 React SPA，不用 uni-app/Taro |
+| 024 | 可观测 | Prometheus+Grafana+Loki+OTel/Tempo+Pyroscope 主平台（Loki 等分期落地） |
+| 025 | 中间件 | 中间件分阶段拓扑；Kafka 唯一总线，RabbitMQ/ES 不引入 |
+| 032 | 商业化 | 开发者接入迁移 V4 api_developer_config |
+
+> 以上 41 条全覆盖；按主题列检索优先于按编号顺序阅读。
 
 ## ADR-001 部署路线：生产底座缩容部署
 
