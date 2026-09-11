@@ -1,0 +1,63 @@
+# CI 四门禁（docs/08 §质量底座 / README 工程质量底座条目）：Go / Java / Python / Web + 契约 lint。
+# 本文件曾随仓库重建丢失（docs/12 缺陷 #15 状态回潮），2026-09-12 恢复。
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  java:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21" # biz 编译目标 21；flink 目标 17 可在 21 下构建（README 前置要求表）
+          cache: maven
+      - name: biz-service tests
+        run: mvn -q test
+        working-directory: services/biz-service
+      - name: flink tests
+        run: mvn -q test
+        working-directory: flink
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # README 前置要求口径
+      - run: pip install -r ai-query/requirements.txt pytest
+      - run: pytest ai-query/app/tests -q
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # README 前置要求口径
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+      - run: buf lint proto

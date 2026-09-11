@@ -4,7 +4,7 @@ SHELL := /bin/bash
 GO := go
 BOOTSTRAP ?= localhost:9092
 
-.PHONY: proto-gen proto-lint build test vet up down ps run-hq-gateway run-quote-push run-notify run-ws-gateway run-ingest-worker run-outbox-publisher run-tick-source bench-ws
+.PHONY: proto-gen proto-lint build biz-build flink-build flink-submit web-install web-build web-dev-pc web-dev-h5 vet test check up down ps run-hq-gateway run-quote-push run-notify run-ws-gateway run-ingest-worker run-outbox-publisher run-tick-source bench-ws
 
 ## 代码生成：.proto -> Go（buf + protoc-gen-go，无需 protoc）
 proto-gen:
@@ -46,6 +46,9 @@ vet:
 
 test:
 	$(GO) test ./...
+
+## 本地提交前最低门槛：契约 lint + Go vet/test（Java/Python/Web 全量门禁在 CI）
+check: proto-lint vet test
 
 ## U0 开发环境（MySQL/Redis/Kafka/CK；flink、obs 用 profile 开启）
 up:
