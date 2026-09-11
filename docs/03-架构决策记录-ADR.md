@@ -6,7 +6,7 @@
 > **编号说明**：ADR-031 物理位置在 018~030 之前（V2.1 冻结补充节），属历史编号错位，引用以编号为准。
 > 细化关系：015⊃007、016⊃002、013⊃008、036⊃005、037⊃010、038⊃006——查"主决策"以被细化条目为准。
 
-## ADR 索引（41 条，按主题分组）
+## ADR 索引（42 条，按主题分组）
 
 | 编号 | 主题 | 一句话结论 |
 |---|---|---|
@@ -37,6 +37,7 @@
 | 038 | 渠道 | SMS/IM/webhook 三通道实装接线（B16） |
 | 010 | AI | LLM 仅做 NL→条件翻译，执行下推（防幻觉） |
 | 037 | AI | LLM 多提供商网关（加权轮询/熔断/日配额，B16） |
+| 042 | AI | Condition schema v2 三方对齐：正幅值+direction 规范形、公共叠加字段、共享 fixture（B25） |
 | 039 | 商业化 | 计量与审计数据表 open_usage_log/admin_audit_log（B18/19） |
 | 005 | 数据源 | AKShare 历史灌数 + 自研模拟 tick 发生器 |
 | 036 | 数据源 | 数据源演进：东财实时 + Baostock 回填（取代 005 主力位） |
@@ -388,3 +389,33 @@
   3. **兼容性承诺**：sub 消息 `channels` 字段为可选增强，缺省 = 纯 quote 行为，存量客户端零感知；周期枚举白名单制（quote@3s/kline@1m 起步，kline@3m~1d 枚举预留），未知 channel 忽略不炸连接；
   4. **亚分钟 bar 不落 CK**：3s/10s 仅走 ws_push 实时流（kline_local.period_min 保持分钟整型口径），落库扩展走独立 ADR。
 - **理由**：掘金式订阅（symbol+period 订阅、闭合推送）与既有架构的预埋点（WsPushMsg.kline oneof、TypeKline/Channel 字段、snapshot_kline topic）完全对齐，最小实现路径即"接线预埋件"；把扇出归属既有服务、索引维度不变，避免为单一功能引入新进程与新索引结构。
+
+### ADR-042 Condition schema v2 三方对齐（已决策，2026-09-12，B25 落地）
+
+- **状态**：已采纳（B25，与代码/fixture 同 PR）
+- **决策**：
+  1. docs/10 §11 的 condition JSON（含公共叠加字段 `once/session/expire_at`）为唯一权威 schema；
+     ai-query pydantic 模型、biz-service Java 校验器、前端 `@hq/shared` 类型（B26）三方对齐；
+  2. **规范形 = 正幅值 + direction**：`PCT_CHANGE.threshold` 恒为正（|t| ∈ (0,100]），方向由
+     `direction`(up/down/both，缺省 both) 表达；解析/校验层接受负值输入并归一化为
+     `direction:"down"`，保证下发条件永远与 Flink `matchPctChange`（幅值+方向）语义一致。
+     实现中发现：docs/10 §11.1 原 #8/#10 示例的负阈值写法与执行器不一致，已随本 ADR 修正示例；
+  3. `limit:true`（涨跌停预警）要求显式 `direction ∈ {up,down}`（Flink limit 分支把非 up 一律当
+     down，无 both 语义，schema 层拒绝该组合）；
+  4. `ConditionGroup(all/any)` 正式接入 `parse_condition`（吸收 docs/12 §0 登记项）：递归深度限
+     2、单组 1~10 项、leaf+group 混合键显式拒绝；**组合仅查询侧**——规则侧扁平（Flink match
+     不解释 all/any），`RuleConditionValidator` 拒绝组合入库；
+  5. **共享 fixture 单一事实源** `tests/fixtures/conditions.v2.json`（valid_query/valid_rule/
+     invalid_query/invalid_rule 四段）：pytest 与 JUnit 消费同一文件，防三语言 schema 漂移；
+     biz 规则侧畸形条件 400 拒绝并规范化入库（消除此前"只查非空即入库"的静默失效面）；
+  6. 条件缓存键升级 `aicond:v2:{sha256}`，v1 键 30min 自然过期，无迁移；
+  7. 查询侧 PCT_CHANGE 边界语义由 `>` 统一为 `>=/<=/|>=|`（对齐 Flink 触发口径），查询结果与
+     告警触发同边界；
+  8. `VOLUME_ABOVE` 为查询侧别名，订阅转换映射 `ruleType=INDICATOR,
+     {"indicator":"VOLUME","op":">","value":threshold}`（B26 实现）。
+- **理由**：原状三方各说各话（ai-query 无符号/无公共字段、Flink 带方向+limit、docs/10 §11 有
+  once/session/expire_at 而实现未承载），当前 5 类型恰为 Flink 子集才碰巧能跑，扩 T1 指标类必炸；
+  且 `RuleService.validate()` 只查非空，畸形 condition 静默入库后在 Flink 侧永久不触发（静默失效）。
+  对齐是 T1 扩展与"查询→订阅"闭环（docs/superpowers/plans B25~B28）的前置。
+- **实现注记**：✅ B25——`condition.py` v2 + `RuleConditionValidator.java` + fixture 三端接线 +
+  回归集扩 direction/组合树用例；`once/session/expire_at` 的 Flink 侧强制仍为登记项（schema 先承载）。

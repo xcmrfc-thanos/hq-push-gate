@@ -21,7 +21,7 @@
 
 [![主干](https://img.shields.io/badge/主干分支-B16~B24_全合入收官-10B981?style=flat-square)](docs/12-商业产品路线图.md)
 [![U0–U2](https://img.shields.io/badge/U0~U2-功能全量落地-10B981?style=flat-square)](docs/07-设计基线与验收口径.md)
-[![ADR](https://img.shields.io/badge/ADR-41_项决策归档-8B5CF6?style=flat-square)](docs/03-架构决策记录-ADR.md)
+[![ADR](https://img.shields.io/badge/ADR-42_项决策归档-8B5CF6?style=flat-square)](docs/03-架构决策记录-ADR.md)
 [![联调](https://img.shields.io/badge/E2E-全链路闭环_29_quotes+2_alerts-10B981?style=flat-square)](docs/12-商业产品路线图.md)
 
 `≥ 100K tick/s 持续吞吐` · `预警端到端 P99 < 2s` · `WS 连接规模 100 万` · `查询 ≥ 1 万 QPS`
@@ -344,7 +344,7 @@ push2delay 镜像；Kafka 瞬断致 source 退出时指数退避重启（1s→30
 | [00-总览](docs/00-总览.md) | 项目定位、技术指标、业务边界、文档导航 |
 | [01-需求规格说明书](docs/01-需求规格说明书.md) | 功能/非功能需求、PC/H5 双端功能矩阵、量化指标 |
 | [02-总体架构设计](docs/02-总体架构设计.md) | 分层架构、数据流、高可用/高性能/高并发专项设计 |
-| [03-架构决策记录-ADR](docs/03-架构决策记录-ADR.md) | **41 项**关键决策及取舍理由 |
+| [03-架构决策记录-ADR](docs/03-架构决策记录-ADR.md) | **42 项**关键决策及取舍理由 |
 | [04-数据模型与接口契约](docs/04-数据模型与接口契约.md) | Protobuf、Kafka Topic、MySQL/CK DDL、REST API、WS 协议 |
 | [05-容量规划与性能压测方案](docs/05-容量规划与性能压测方案.md) | 容量推算、集群规格、6 类压测场景与实验设计 |
 | [06-部署方案与演进路线](docs/06-部署方案与演进路线.md) | compose 开发环境 → K8s 生产拓扑、里程碑 |

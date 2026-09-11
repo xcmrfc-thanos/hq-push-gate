@@ -68,6 +68,9 @@ public class RuleService {
     @Transactional
     public AlertRule update(long userId, long id, AlertRule in) {
         AlertRule cur = get(userId, id);
+        if (in.getRuleType() == null || in.getRuleType().isBlank()) {
+            in.setRuleType(cur.getRuleType()); // 更新允许不带 ruleType，沿用当前值供校验
+        }
         validate(in);
         cur.setCondition(in.getCondition());
         cur.setCooldownSec(in.getCooldownSec() > 0 ? in.getCooldownSec() : cur.getCooldownSec());
@@ -104,6 +107,12 @@ public class RuleService {
         }
         if (in.getMarket() == null || in.getSymbol() == null) {
             throw new BadRequestException("market/symbol required");
+        }
+        // ADR-042：条件 schema 校验 + 规范化（畸形 400 拒绝；canonical 形态入库并经 outbox 下发）
+        try {
+            in.setCondition(RuleConditionValidator.canonicalize(in.getRuleType(), in.getCondition()));
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("invalid condition: " + e.getMessage());
         }
     }
 

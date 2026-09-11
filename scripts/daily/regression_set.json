@@ -4,6 +4,10 @@
   {"question": "价格在15到25之间", "expected": {"type": "PRICE_RANGE", "low": 15, "high": 25}},
   {"question": "涨跌幅超过5%的股票", "expected": {"type": "PCT_CHANGE", "threshold": 5}},
   {"question": "成交量大于50万股", "expected": {"type": "VOLUME_ABOVE", "threshold": 500000}},
+  {"question": "只要涨的：涨幅超过5%的股票", "expected": {"type": "PCT_CHANGE", "threshold": 5, "direction": "up"}},
+  {"question": "跌幅达到3%的股票", "expected": {"type": "PCT_CHANGE", "threshold": 3, "direction": "down"}},
+  {"question": "涨跌幅超过2%的都要", "expected": {"type": "PCT_CHANGE", "threshold": 2}},
+  {"question": "涨幅超过5%且股价高于10元的股票", "expected": {"all": [{"type": "PCT_CHANGE", "threshold": 5, "direction": "up"}, {"type": "PRICE_ABOVE", "threshold": 10}]}},
   {"question": "今天帮我查一下明天会涨停的", "expected": null},
   {"question": "优质白马股推荐", "expected": null}
 ]
