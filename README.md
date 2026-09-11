@@ -17,6 +17,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![Kubernetes](https://img.shields.io/badge/K8s-生产拓扑-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/xcmrfc-thanos/hq-push-gate/ci.yml?style=for-the-badge&label=CI%20四门禁)](https://github.com/xcmrfc-thanos/hq-push-gate/actions/workflows/ci.yml)
 
 [![主干](https://img.shields.io/badge/主干分支-B16~B24_全合入收官-10B981?style=flat-square)](docs/12-商业产品路线图.md)
 [![U0–U2](https://img.shields.io/badge/U0~U2-功能全量落地-10B981?style=flat-square)](docs/07-设计基线与验收口径.md)
@@ -24,6 +25,7 @@
 [![联调](https://img.shields.io/badge/E2E-全链路闭环_29_quotes+2_alerts-10B981?style=flat-square)](docs/12-商业产品路线图.md)
 
 `≥ 100K tick/s 持续吞吐` · `预警端到端 P99 < 2s` · `WS 连接规模 100 万` · `查询 ≥ 1 万 QPS`
+**（以上为设计目标；实测口径与验收线见 [docs/07 §9](docs/07-设计基线与验收口径.md)，已实测项见下方指标表）**
 
 **设计文档**：[docs/](docs/00-总览.md) ｜ **冻结基线**：[docs/07-设计基线与验收口径.md](docs/07-设计基线与验收口径.md) ｜ **分支队列**：[docs/12-商业产品路线图.md](docs/12-商业产品路线图.md)
 
@@ -83,10 +85,10 @@
 
 ## 🎯 核心设计指标
 
-| 维度 | 指标 | 验收值 |
+| 维度 | 指标 | 目标值（设计目标；验收口径 docs/07 §9） |
 |---|---|---|
 | 吞吐 | tick 处理能力 | **≥ 10 万条/秒** 持续（benchmark-small 全量口径 docs/07 §9） |
-| 延迟 | 预警端到端（源 → 客户端收到） | P50 < 500ms，**P99 < 2s**；价格类规则 P99 < 400ms |
+| 延迟 | 预警端到端（源 → 客户端收到） | P50 < 500ms，**P99 < 2s**（价格类规则 400ms 为架构预算值，docs/02 §3.1） |
 | 并发 | WebSocket 长连接 | **100 万**规模（docs/07 §3 连接层目标）；单机 smoke 实测 300 连接收 13.4 万推送 |
 | 查询 | 行情 / K 线查询 | ≥ 1 万 QPS（缓存命中率 > 90%） |
 | 数据 | 时序存储规模 | 百亿~千亿行（CK 分片 + S3 归档） |
@@ -117,7 +119,7 @@
 | **U0** 启动（0~1k） | 全链路打通 · 开发环境 · 基础压测 | ✅ 已完成（E2E 闭环实测） |
 | **U1** 内测（1k~5k） | 真实用户全链路 + 渠道可运营（B16 渠道/LLM 网关、B17 契约加固） | ✅ 已完成 |
 | **U2** 小规模生产（5k~10k） | 能收费、能开放、能扛故障（B18 开放平台、B19 商业闭环、B20 选股收尾、B21 订阅扇出、B22 权益门控、B23 热路径性能与治理、B24 文档审计收口） | ✅ 功能全量落地 |
-| **U3** 增长 | 规模化与变现验证 · benchmark 全量口径集群验收 | ✅ 验收口径达成（docs/07 §9） |
+| **U3** 增长 | 规模化与变现验证 · benchmark 全量口径集群验收 | ✅ 验收口径已冻结（docs/07 §9）；实测待 benchmark-small 集群执行 |
 
 分支队列 B16~B24 已全部合入主干收官，逐分支交付明细见 [docs/12 §2](docs/12-商业产品路线图.md)。
 
@@ -139,7 +141,7 @@ WS 行情通道按 `user_vip.plan_type` 门控与差频（per-conn 合并帧，�
 | 目录 | 内容 |
 |---|---|
 | `proto/` | 公共消息契约（buf 生成，`make proto-gen`） |
-| `packages/` | Go 共享包（contract、kafkax、obs、configx、httpx）+ 前端共享（@hq/api-client、@hq/shared） |
+| `packages/` | Go 共享包（contract、kafkax、obs、configx、httpx、secretx 等）+ 前端共享（@hq/api-client、@hq/shared） |
 | `services/` | hq-gateway、quote-push、notify、ws-gateway、ingest-worker、outbox-publisher、biz-service(Java) |
 | `flink/` | Flink 规则/K线作业（Java 17 · Flink 1.20.5，`make flink-build`；biz-service 为 Java 21） |
 | `apps/` | pc-web（React 19 + AntD + klinecharts）、h5（React 19 + AntD Mobile）、admin（管理端） |
@@ -152,6 +154,18 @@ WS 行情通道按 `user_vip.plan_type` 门控与差频（per-conn 合并帧，�
 | `docs/assets/` | 本页 banner / 架构图 / 主链路图（SVG 矢量源文件 + 2x PNG 渲染版，改 SVG 后可用 chromium headless 重新导出 PNG） |
 
 ## 🚀 快速开始（U0 开发环境）
+
+### 前置要求
+
+| 依赖 | 版本 | 自检与说明 |
+|---|---|---|
+| Go | **1.25.x** | `go version`；go.mod 强制 1.25 |
+| JDK | **21**（构建用） | ⚠️ Windows 常见坑：系统默认 `JAVA_HOME` 可能指向 JDK 8，Maven 构建会因 Java 17+ 语法（text block）报错——先 `java -version` 确认，构建前 `export JAVA_HOME=<JDK21 路径>`。biz-service 编译目标 21；flink 模块目标 17（JDK 17 亦可构建 flink） |
+| Node | **24.x** | 仅前端/管理端需要（`node -v`） |
+| Python | 3.12 | 回填/对账/AI 脚本用；**Windows 用 `py -3`，Linux/macOS 用 `python3`** |
+| buf + protoc-gen-go | 最新 | `make proto-gen` 前置（安装见 `scripts/install-tools.sh`） |
+
+### 行情最小链路（1~5 步，无需 Flink / biz-service）
 
 ```bash
 # 1. 基础设施（MySQL、Redis、Kafka、ClickHouse + Topic 初始化）
@@ -175,6 +189,34 @@ make web-install
 make web-dev-pc   # http://localhost:23031（/api 代理 biz-service，/ws 代理 ws-gateway）
 make web-dev-h5   # http://localhost:23032
 ```
+
+### 验证（跑通标志）
+
+```bash
+# Redis 出现热快照键
+docker exec hq-push-gate-redis-1 redis-cli --scan --pattern 'snap:*' | head -3
+# quote-push 消费计数持续增长
+curl -s http://127.0.0.1:23022/metrics | grep quote_push_ticks_consumed_total
+# WS 客户端收帧（U0 联测 token；收到的 quote 帧为 free 档 10s 差频）
+go run ./bench/ws-bench/cmd/ws-bench -users 3 -symbols 5 -duration 15s
+```
+
+### 完整告警链路（可选：Flink + biz-service + 造规则）
+
+<details>
+<summary>展开</summary>
+
+```bash
+# 1. Flink（compose profile；JobManager/TaskManager）
+docker compose -f deploy/docker-compose.yml --profile flink up -d
+# 2. 构建并提交作业（TickRuleJob 规则匹配 + KlineJob 1m 聚合）
+make flink-build && make flink-submit
+# 3. biz-service（JDK 21）：IDE 启动，或
+cd services/biz-service && mvn spring-boot:run    # 端口 23026
+# 4. 造压测用户与规则（biz-service bench 端点，见「压测与演练」节）
+```
+之后重跑 ws-bench，输出 `alerts` / `acks` 非 0 即告警链路（Flink 匹配 → alert_event → notify → ws_push → ACK）闭环。
+</details>
 
 ### WS 联调协议
 
@@ -273,7 +315,7 @@ go run ./bench/ws-bench/cmd/ws-bench -users 300 -symbols 5 -duration 40s -secret
 
 ## ⚙️ 环境变量
 
-各服务使用统一前缀配置（`HQ_GATEWAY_*`、`QUOTE_PUSH_*`、`NOTIFY_*`、`WS_GATEWAY_*`、`INGEST_*`），
+各服务使用统一前缀配置（`HQ_GATEWAY_*`、`QUOTE_PUSH_*`、`NOTIFY_*`、`WS_GATEWAY_*`、`INGEST_*`、`OUTBOX_PUB_*`），
 默认值面向本机 Compose；见各服务 `internal/config/config.go`。
 
 ### 内置行情源（hq-gateway）
