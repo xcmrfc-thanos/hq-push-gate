@@ -20,9 +20,14 @@ type Puller interface {
 	Ack(ctx context.Context, deliveryID string) (bool, error)
 }
 
+// Stats 投递统计用例接口（B28 条件质量报表）。
+type Stats interface {
+	DeliveryStats(ctx context.Context) ([]domain.RuleStat, error)
+}
+
 // NewInternalMux 内部 API 路由。统一响应 {code,msg,data}（docs/04 §6）；
 // 内部令牌恒时比较 + 40103（docs/11 §3/§4，B17 统一口径）。
-func NewInternalMux(p Puller, token string) *http.ServeMux {
+func NewInternalMux(p Puller, stats Stats, token string) *http.ServeMux {
 	mux := http.NewServeMux()
 	auth := func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +88,21 @@ func NewInternalMux(p Puller, token string) *http.ServeMux {
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": 0, "msg": "ok", "data": map[string]bool{"updated": ok}})
+	}))
+
+	// B28 条件质量报表：按规则聚合投递/ACK/过期（数据源 = alert_record；Doris alert_event_detail 按需启用后可切换）
+	mux.HandleFunc("GET /internal/v1/stats/delivery", auth(func(w http.ResponseWriter, r *http.Request) {
+		if stats == nil {
+			httpx.Err(w, http.StatusServiceUnavailable, 50310, "stats unavailable")
+			return
+		}
+		rows, err := stats.DeliveryStats(r.Context())
+		if err != nil {
+			httpx.Err(w, http.StatusServiceUnavailable, 50302, "stats failed")
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": 0, "msg": "ok",
+			"data": map[string]any{"rules": rows}})
 	}))
 
 	return mux

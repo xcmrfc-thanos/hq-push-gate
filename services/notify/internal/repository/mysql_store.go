@@ -272,6 +272,34 @@ func (s *MySQLStore) Ack(ctx context.Context, deliveryID string) (bool, error) {
 	return n > 0, nil
 }
 
+// DeliveryStats 按规则聚合投递状态（B28 条件质量报表；数据源 alert_record，
+// Doris alert_event_detail 按需启用后可切换聚合源）。
+func (s *MySQLStore) DeliveryStats(ctx context.Context) ([]domain.RuleStat, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT rule_id, market, symbol,
+		        SUM(status = 'PENDING')  AS pending,
+		        SUM(status = 'SENT')     AS sent,
+		        SUM(status = 'ACKED')    AS acked,
+		        SUM(status = 'EXPIRED')  AS expired
+		 FROM alert_record
+		 GROUP BY rule_id, market, symbol
+		 ORDER BY acked DESC, sent DESC
+		 LIMIT 200`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.RuleStat, 0, 32)
+	for rows.Next() {
+		var st domain.RuleStat
+		if err := rows.Scan(&st.RuleID, &st.Market, &st.Symbol, &st.Pending, &st.Sent, &st.Acked, &st.Expired); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
 // PullPending 补拉：cursor_id > cursor、未 ACK 未过期、按 cursor_id 升序。
 func (s *MySQLStore) PullPending(ctx context.Context, userID, cursor int64, limit int, now time.Time, window time.Duration) ([]*domain.AlertRecord, error) {
 	if limit <= 0 || limit > 200 {

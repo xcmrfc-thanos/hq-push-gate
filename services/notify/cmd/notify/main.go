@@ -221,8 +221,8 @@ func main() {
 		}
 	}()
 
-	// 内部 API：补拉/ACK + 服务商回调 + 渠道配置管理 + 健康检查 + 指标
-	mux := transport.NewInternalMux(pull, cfg.InternalToken)
+	// 内部 API：补拉/ACK + 服务商回调 + 渠道配置管理 + 投递统计（B28）+ 健康检查 + 指标
+	mux := transport.NewInternalMux(pull, mysql, cfg.InternalToken)
 	transport.RegisterHooks(mux, mysql, repository.NewRuleBcastPublisher(writer), cfg.InternalToken, cfg.HookSecret, log)
 	transport.RegisterChannelAdmin(mux, transport.ChannelAdminDeps{
 		DB: mysql.DB(), Ring: ring, Prov: prov, Token: cfg.InternalToken,

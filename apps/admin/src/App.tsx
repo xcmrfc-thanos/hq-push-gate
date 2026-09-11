@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Alert, Button, Card, Form, Input, InputNumber, Layout, Select, Space, Table, Tabs, Tag, Typography, message,
 } from "antd";
-import { ApiError, bizApi, fewshotApi, getToken, llmApi, notifyApi, setToken, type ChannelRow, type FewshotSample, type LlmModel, type LlmProvider } from "./api";
+import { ApiError, bizApi, fewshotApi, getToken, llmApi, notifyApi, setToken, type ChannelRow, type DeliveryRuleStat, type FewshotSample, type LlmModel, type LlmProvider } from "./api";
 
 const { Header, Content } = Layout;
 
@@ -46,6 +46,7 @@ function ChannelTabs() {
         { key: "sms", label: "短信渠道", children: <SmsTab /> },
         { key: "llm", label: "LLM 渠道", children: <LlmTab /> },
         { key: "fewshot", label: "few-shot 样本", children: <FewshotTab /> },
+        { key: "quality", label: "质量报表", children: <QualityTab /> },
         { key: "users", label: "用户套餐", children: <CommerceTab /> },
       ]}
     />
@@ -186,6 +187,58 @@ function FewshotTab() {
           </Space>
         </Card>
       )}
+    </Space>
+  );
+}
+
+function QualityTab() {
+  const [rules, setRules] = useState<DeliveryRuleStat[]>([]);
+  const [fewCounts, setFewCounts] = useState<Record<string, number>>({});
+  const reload = useCallback(() => {
+    notifyApi.deliveryStats().then((d) => setRules(d.rules)).catch((e) => message.error(String(e)));
+    fewshotApi.stats().then((d) => setFewCounts(d.counts)).catch(() => {});
+  }, []);
+  useEffect(reload, [reload]);
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Card title="投递/ACK 统计（按规则聚合；数据源 alert_record，Doris alert_event_detail 按需启用后切换）">
+        <Table<DeliveryRuleStat>
+          rowKey={(r) => `${r.rule_id}:${r.market}:${r.symbol}`}
+          size="small"
+          pagination={{ pageSize: 20 }}
+          dataSource={rules}
+          columns={[
+            { title: "规则ID", dataIndex: "rule_id", width: 80 },
+            { title: "市场", dataIndex: "market", width: 90 },
+            { title: "代码", dataIndex: "symbol", width: 110 },
+            { title: "待投递", dataIndex: "pending", width: 80 },
+            { title: "已投递", dataIndex: "sent", width: 80 },
+            { title: "已ACK", dataIndex: "acked", width: 80 },
+            { title: "已过期", dataIndex: "expired", width: 80 },
+            {
+              title: "ACK 率", width: 100,
+              render: (_, r) => {
+                const total = r.pending + r.sent + r.acked + r.expired;
+                if (total === 0) return "—";
+                const rate = (r.acked / total) * 100;
+                return <Tag color={rate >= 30 ? "green" : rate > 0 ? "orange" : "red"}>{rate.toFixed(0)}%</Tag>;
+              },
+            },
+          ]}
+        />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          判读口径（docs/superpowers/plans B28）：高投递 + 0 ACK = 噪声规则信号（建议收紧 direction/阈值）；
+          ACK 率 ≥30% 绿 / 1~29% 橙 / 0% 红。空结果率与 UNKNOWN 率见 few-shot 样本页统计。
+        </Typography.Text>
+      </Card>
+      <Card title="few-shot 语料统计（B27 飞轮；status:source = 条数）">
+        <Space wrap>
+          {Object.keys(fewCounts).length === 0
+            ? <Typography.Text type="secondary">暂无数据（DB 未接入或表为空）</Typography.Text>
+            : Object.entries(fewCounts).map(([k, v]) => <Tag key={k}>{k} = {v}</Tag>)}
+        </Space>
+      </Card>
     </Space>
   );
 }

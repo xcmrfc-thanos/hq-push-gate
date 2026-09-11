@@ -39,6 +39,7 @@ async function call<T>(base: string, path: string, init?: RequestInit): Promise<
 
 export const notifyApi = {
   listChannels: () => call<{ items: ChannelRow[] }>("/notify", "/internal/v1/channels"),
+  deliveryStats: () => call<{ rules: DeliveryRuleStat[] }>("/notify", "/internal/v1/stats/delivery"),
   putMail: (cfg: MailConfigReq) =>
     call<{ id: number }>("/notify", "/internal/v1/channels/mail", {
       method: "PUT",
@@ -156,4 +157,14 @@ export interface LlmModel {
   weight: number;
   max_tokens: number;
   enabled: boolean;
+}
+
+export interface DeliveryRuleStat {
+  rule_id: number;
+  market: string;
+  symbol: string;
+  pending: number;
+  sent: number;
+  acked: number;
+  expired: number;
 }

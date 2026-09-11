@@ -45,3 +45,14 @@ func Pullable(r *AlertRecord, now time.Time, window time.Duration) bool {
 	}
 	return now.Sub(r.TriggerAt) < window
 }
+
+// RuleStat 单规则投递聚合（B28 条件质量报表：ACK 率 = acked/总投递；0 ACK 高触发 = 噪声规则信号）。
+type RuleStat struct {
+	RuleID  int64  `json:"rule_id"`
+	Market  string `json:"market"`
+	Symbol  string `json:"symbol"`
+	Pending int    `json:"pending"`
+	Sent    int    `json:"sent"`
+	Acked   int    `json:"acked"`
+	Expired int    `json:"expired"`
+}
