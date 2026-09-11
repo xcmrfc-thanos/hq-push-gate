@@ -4,6 +4,7 @@ import { useAuthStore } from "../stores/authStore";
 import { useSocket } from "../services/socket";
 import { LoginPage } from "../pages/LoginPage";
 import { QuotesPage } from "../pages/QuotesPage";
+import { AIScreenPage } from "../pages/AIScreenPage";
 import { AlertsPage } from "../pages/AlertsPage";
 
 export function App() {
@@ -14,6 +15,7 @@ export function App() {
         <Route path="/" element={<Shell />}>
           <Route index element={<Navigate to="/quotes" replace />} />
           <Route path="/quotes" element={<QuotesPage />} />
+          <Route path="/ai" element={<AIScreenPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
         </Route>
       </Route>
@@ -40,6 +42,7 @@ function Shell() {
       </div>
       <TabBar activeKey={loc.pathname} onChange={(k) => nav(k)}>
         <TabBar.Item key="/quotes" title="行情" />
+        <TabBar.Item key="/ai" title="选股" />
         <TabBar.Item key="/alerts" title="告警" badge={undefined} />
       </TabBar>
     </div>

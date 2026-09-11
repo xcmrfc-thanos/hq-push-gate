@@ -4,17 +4,29 @@ import { Button, Card, Empty, Form, InputNumber, Popconfirm, Select, Switch, Tab
 import { useEffect, useState } from "react";
 import { apiClient } from "../services/socket";
 
-const RULE_TYPES = [
+const FALLBACK_RULE_TYPES = [
   { value: "PRICE_ABOVE", label: "价格高于" },
   { value: "PRICE_BELOW", label: "价格低于" },
   { value: "PRICE_RANGE", label: "价格区间" },
   { value: "PCT_CHANGE", label: "涨跌幅超过" },
+  { value: "INDICATOR", label: "成交量突破" },
 ];
 
 export function RulesPage() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [form] = Form.useForm();
+  // 类型选项 meta 驱动（B26：GET /ai/meta 的 rule_type 去重；失败回退本地清单）
+  const [ruleTypes, setRuleTypes] = useState(FALLBACK_RULE_TYPES);
+
+  useEffect(() => {
+    apiClient.aiMeta().then((m) => {
+      const seen = new Map<string, string>();
+      for (const t of m.query_types) seen.set(t.rule_type, t.label);
+      if (seen.has("INDICATOR")) seen.set("INDICATOR", "成交量突破");
+      setRuleTypes(Array.from(seen, ([value, label]) => ({ value, label })));
+    }).catch(() => {}); // meta 不可达时静默回退
+  }, []);
 
   const reload = () => {
     setLoading(true);
@@ -26,10 +38,15 @@ export function RulesPage() {
     market: string; symbol: string; ruleType: string;
     threshold?: number; low?: number; high?: number; cooldownSec: number;
   }) => {
-    const condition =
-      v.ruleType === "PRICE_RANGE"
-        ? { low: v.low, high: v.high }
-        : { threshold: v.threshold };
+    let condition: Record<string, unknown>;
+    if (v.ruleType === "PRICE_RANGE") {
+      condition = { low: v.low, high: v.high };
+    } else if (v.ruleType === "INDICATOR") {
+      // T0 实时子集：仅 INDICATOR/VOLUME（ADR-042 §8 映射口径）
+      condition = { indicator: "VOLUME", op: ">", value: v.threshold };
+    } else {
+      condition = { threshold: v.threshold };
+    }
     await apiClient.createRule({
       market: v.market, symbol: v.symbol, ruleType: v.ruleType,
       condition: JSON.stringify(condition), cooldownSec: v.cooldownSec ?? 60, status: 1,
@@ -60,7 +77,7 @@ export function RulesPage() {
             .map((s) => ({ value: s, label: s }))} showSearch />
         </Form.Item>
         <Form.Item name="ruleType" initialValue="PRICE_ABOVE" rules={[{ required: true }]}>
-          <Select style={{ width: 130 }} options={RULE_TYPES} />
+          <Select style={{ width: 150 }} options={ruleTypes} />
         </Form.Item>
         <Form.Item noStyle shouldUpdate={(a, b) => a.ruleType !== b.ruleType}>
           {({ getFieldValue }) =>
@@ -96,7 +113,7 @@ export function RulesPage() {
         columns={[
           { title: "市场", dataIndex: "market", render: (m: string) => MARKET_LABELS[m as keyof typeof MARKET_LABELS] ?? m },
           { title: "代码", dataIndex: "symbol" },
-          { title: "类型", dataIndex: "ruleType", render: (t: string) => RULE_TYPES.find((x) => x.value === t)?.label ?? t },
+          { title: "类型", dataIndex: "ruleType", render: (t: string) => ruleTypes.find((x) => x.value === t)?.label ?? t },
           { title: "条件", dataIndex: "condition" },
           { title: "冷却(秒)", dataIndex: "cooldownSec" },
           { title: "版本", dataIndex: "version" },

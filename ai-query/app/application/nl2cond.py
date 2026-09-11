@@ -50,7 +50,11 @@ class AIQueryService:
 
         cond = await self._parse(q, client_ip)
         rows = await asyncio.to_thread(self.ck.screen, cond, limit=limit)
-        payload = {"condition": json.loads(to_json(cond)), "symbols": rows}
+        payload = {
+            "condition": json.loads(to_json(cond)),
+            "symbols": rows,
+            "condition_version": 2,  # ADR-042：schema 规范形版本（B26 前端订阅映射依据）
+        }
         await self.cache.put(key, payload)
         return {**payload, "cached": False}
 

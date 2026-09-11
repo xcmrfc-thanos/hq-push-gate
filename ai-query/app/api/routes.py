@@ -7,9 +7,52 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
 from ..application.nl2cond import AIQueryService, UnknownCondition
+from ..domain.condition import MAX_PRICE, MAX_PCT, MAX_VOLUME
 from ..infrastructure.llm import LLMError
 
 router = APIRouter()
+
+
+def build_meta() -> dict:
+    """白名单元数据（B26 meta 驱动前端：表单渲染/订阅映射的单一事实源，ADR-042 §8）。
+
+    rule_type = 订阅转换目标（VOLUME_ABOVE → INDICATOR/VOLUME）；组合条件不提供订阅映射
+    （规则侧扁平，前端 conditionToRuleInput 拒绝）。数值边界与 domain 常量同源。
+    """
+    return {
+        "condition_version": 2,
+        "groups": {"max_depth": 2, "max_items": 10},
+        "query_types": [
+            {
+                "type": "PRICE_ABOVE", "label": "价格高于", "rule_type": "PRICE_ABOVE",
+                "fields": [{"name": "threshold", "label": "价格(元)", "type": "float", "gt": 0, "le": MAX_PRICE}],
+            },
+            {
+                "type": "PRICE_BELOW", "label": "价格低于", "rule_type": "PRICE_BELOW",
+                "fields": [{"name": "threshold", "label": "价格(元)", "type": "float", "gt": 0, "le": MAX_PRICE}],
+            },
+            {
+                "type": "PRICE_RANGE", "label": "价格区间", "rule_type": "PRICE_RANGE",
+                "fields": [
+                    {"name": "low", "label": "最低价(元)", "type": "float", "gt": 0, "le": MAX_PRICE},
+                    {"name": "high", "label": "最高价(元)", "type": "float", "gt": 0, "le": MAX_PRICE},
+                ],
+            },
+            {
+                "type": "PCT_CHANGE", "label": "涨跌幅(%)", "rule_type": "PCT_CHANGE",
+                "fields": [
+                    {"name": "threshold", "label": "涨跌幅(%)", "type": "float", "ne": 0, "ale": MAX_PCT},
+                    {"name": "direction", "label": "方向", "type": "enum",
+                     "values": ["up", "down", "both"], "required": False},
+                    {"name": "limit", "label": "涨跌停预警", "type": "bool", "required": False},
+                ],
+            },
+            {
+                "type": "VOLUME_ABOVE", "label": "成交量高于(股)", "rule_type": "INDICATOR",
+                "fields": [{"name": "threshold", "label": "成交量(股)", "type": "float", "gt": 0, "le": MAX_VOLUME}],
+            },
+        ],
+    }
 
 
 class QueryReq(BaseModel):
@@ -36,6 +79,12 @@ async def healthz() -> dict:
 @router.get("/metrics")
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@router.get("/api/v1/ai/meta")
+async def ai_meta() -> dict:
+    """白名单元数据（静态只读，无 LLM 调用；前端表单渲染/订阅映射契约，docs/04 §6）。"""
+    return {"code": 0, "msg": "ok", "data": build_meta()}
 
 
 @router.post("/api/v1/ai/query")

@@ -108,3 +108,68 @@ export function fmtVol(v: number): string {
   if (v >= 1e4) return (v / 1e4).toFixed(2) + "万";
   return v.toFixed(0);
 }
+
+// ---- AI 选股（schema v2，ADR-042；meta 契约 = GET /api/v1/ai/meta，docs/04 §6） ----
+
+export interface AIFieldMeta {
+  name: string;
+  label: string;
+  type: "float" | "enum" | "bool";
+  gt?: number;
+  le?: number;
+  values?: string[];
+  required?: boolean;
+}
+
+export interface AITypeMeta {
+  type: string;
+  label: string;
+  /** 订阅转换目标（VOLUME_ABOVE → INDICATOR/VOLUME，ADR-042 §8） */
+  rule_type: string;
+  fields: AIFieldMeta[];
+}
+
+export interface AIMeta {
+  condition_version: number;
+  groups: { max_depth: number; max_items: number };
+  query_types: AITypeMeta[];
+}
+
+export interface AIQueryResp {
+  condition: Record<string, unknown>;
+  symbols: Array<{ symbol: string; last: number; pct: number; volume: number }>;
+  cached?: boolean;
+  condition_version: number;
+}
+
+/** 查询条件 → 规则创建入参（单票订阅，B26）。
+ * VOLUME_ABOVE 映射 INDICATOR/{"indicator":"VOLUME","op":">","value":threshold}；
+ * 组合条件（all/any）规则侧扁平不支持订阅，返回 ok:false。 */
+export function conditionToRuleInput(
+  condition: Record<string, unknown>,
+  market: string,
+  symbol: string,
+  cooldownSec = 60,
+): { ok: true; rule: AlertRule } | { ok: false; reason: string } {
+  const type = condition["type"];
+  if (typeof type !== "string") return { ok: false, reason: "条件缺少 type" };
+  if ("all" in condition || "any" in condition) {
+    return { ok: false, reason: "组合条件暂不支持订阅，请对单一条件创建规则" };
+  }
+  const ruleCond: Record<string, unknown> = { ...condition };
+  delete ruleCond.type;
+  let ruleType = type;
+  if (type === "VOLUME_ABOVE") {
+    const t = ruleCond["threshold"];
+    if (typeof t !== "number" || !(t > 0)) return { ok: false, reason: "成交量阈值非法" };
+    delete ruleCond.threshold;
+    ruleType = "INDICATOR";
+    ruleCond["indicator"] = "VOLUME";
+    ruleCond["op"] = ">";
+    ruleCond["value"] = t;
+  }
+  return {
+    ok: true,
+    rule: { market, symbol, ruleType, condition: JSON.stringify(ruleCond), cooldownSec, status: 1 },
+  };
+}

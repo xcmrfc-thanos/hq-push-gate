@@ -1,4 +1,4 @@
-import type { ApiEnvelope, AlertRecord, AlertRule, KlineBar, QuoteSnapshot } from "@hq/shared";
+import type { AIMeta, ApiEnvelope, AlertRecord, AlertRule, AIQueryResp, KlineBar, QuoteSnapshot } from "@hq/shared";
 
 /** REST 客户端：统一信封解析、Bearer 注入、401 换发（docs/04 §6）。 */
 export class ApiClient {
@@ -92,6 +92,18 @@ export class ApiClient {
       market, symbol, period: String(period), limit: String(limit),
     });
     return this.request<KlineBar[]>(`/api/v1/quote/kline?${q}`);
+  }
+
+  // ---- ai 选股（docs/04 §6：/api/v1/ai/*，schema v2 ADR-042） ----
+  aiQuery(q: string, limit = 50) {
+    return this.request<AIQueryResp>("/api/v1/ai/query", {
+      method: "POST",
+      body: JSON.stringify({ q, limit }),
+    });
+  }
+
+  aiMeta() {
+    return this.request<AIMeta>("/api/v1/ai/meta");
   }
 
   // ---- rules ----

@@ -10,6 +10,7 @@ import { useSocket, useSocketStore } from "../services/socket";
 import { themeConfig } from "./theme";
 import { LoginPage } from "../pages/LoginPage";
 import { MarketPage } from "../pages/MarketPage";
+import { AIQueryPage } from "../pages/AIQueryPage";
 import { AlertsPage } from "../pages/AlertsPage";
 import { RulesPage } from "../pages/RulesPage";
 import { ChartPage } from "../pages/ChartPage";
@@ -27,6 +28,7 @@ export function App() {
             <Route path="/" element={<Shell />}>
               <Route index element={<Navigate to="/market" replace />} />
               <Route path="/market" element={<MarketPage />} />
+              <Route path="/ai" element={<AIQueryPage />} />
               <Route path="/chart" element={<ChartPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/rules" element={<RulesPage />} />
@@ -57,6 +59,7 @@ function Shell() {
   const items = useMemo(
     () => [
       { key: "/market", label: "行情" },
+      { key: "/ai", label: "AI 选股" },
       { key: "/chart", label: "K线" },
       { key: "/alerts", label: <Badge count={unread} offset={[8, 0]}>告警</Badge> },
       { key: "/rules", label: "规则" },

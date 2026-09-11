@@ -169,6 +169,28 @@ def test_shared_fixture_invalid_query_cases():
         raise AssertionError(f"must reject: {case['name']}")
 
 
+# ---- B26：meta 契约 + condition_version ----
+
+def test_build_meta_contract():
+    from app.api.routes import build_meta
+    meta = build_meta()
+    assert meta["condition_version"] == 2
+    types = {t["type"]: t for t in meta["query_types"]}
+    assert set(types) == {"PRICE_ABOVE", "PRICE_BELOW", "PRICE_RANGE", "PCT_CHANGE", "VOLUME_ABOVE"}
+    # ADR-042 §8：VOLUME_ABOVE 订阅映射到 INDICATOR
+    assert types["VOLUME_ABOVE"]["rule_type"] == "INDICATOR"
+    assert types["PRICE_ABOVE"]["rule_type"] == "PRICE_ABOVE"
+    # 边界与 domain 常量同源
+    assert types["PCT_CHANGE"]["fields"][0]["ale"] == 100.0
+    assert types["PRICE_ABOVE"]["fields"][0]["le"] == 1_000_000.0
+
+
+def test_query_payload_carries_condition_version():
+    svc = AIQueryService(FakeLLM('{"type":"PRICE_ABOVE","threshold":100}'), FakeCK(), FakeCache())
+    out = _run(svc.query("价格超过100元"))
+    assert out["condition_version"] == 2
+
+
 # ---- 用例编排（mock 上游） ----
 
 class FakeLLM:
