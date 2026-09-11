@@ -1,0 +1,79 @@
+# ns-query：业务 API（biz-service，Spring Boot 3.4）
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: biz-service
+  namespace: ns-query
+  labels: { app: biz-service }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: biz-service }
+  template:
+    metadata:
+      labels: { app: biz-service }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/biz-service:0.1.0
+          ports:
+            - { containerPort: 23026, name: http }
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+          env:
+            - name: HQ_JWT_SECRET
+              valueFrom:
+                secretKeyRef: { name: app-secrets, key: HQ_JWT_SECRET }
+            - name: HQ_MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: app-secrets, key: HQ_MYSQL_PASSWORD }
+            - name: HQ_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: app-secrets, key: HQ_CLICKHOUSE_PASSWORD }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 23026 }
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 23026 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: biz-service
+  namespace: ns-query
+spec:
+  selector: { app: biz-service }
+  ports:
+    - { port: 23026, targetPort: 23026, name: http }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: biz-service
+  namespace: ns-query
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: biz-service }
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: biz-service
+  namespace: ns-query
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: biz-service }

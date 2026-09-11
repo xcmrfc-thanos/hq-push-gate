@@ -1,0 +1,5 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - apisix-routes.yaml
+# APISIX 本体经 Helm 安装（values 见 apisix-helm-values.yaml），不纳入 kustomize。

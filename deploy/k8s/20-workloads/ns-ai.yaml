@@ -1,0 +1,57 @@
+# ns-ai：NL2Condition 自然语言筛选（docs/06 §3.1 ns-ai 资源池）
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-query
+  namespace: ns-ai
+  labels: { app: ai-query }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: ai-query }
+  template:
+    metadata:
+      labels: { app: ai-query }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/ai-query:0.1.0
+          ports:
+            - { containerPort: 23041, name: http }
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+            - secretRef: { name: llm-credentials } # LLM_API_KEY（env 回退渠道）/ HQ_MASTER_KEYS（v1 密文主密钥）/ HQ_MYSQL_PASSWORD（DB 渠道源），流水线注入（不入库）
+          readinessProbe:
+            httpGet: { path: /healthz, port: 23041 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 23041 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-query
+  namespace: ns-ai
+spec:
+  selector: { app: ai-query }
+  ports:
+    - { port: 23041, targetPort: 23041, name: http }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-query
+  namespace: ns-ai
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: ai-query }

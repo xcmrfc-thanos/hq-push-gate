@@ -1,0 +1,50 @@
+# 每日 15:30 K线对账 CronJob（交易日收盘后；时区 Asia/Shanghai）
+# 脚本直接从仓库生成 ConfigMap（需关闭 load restrictor）：
+#   kustomize build --load-restrictor LoadRestrictionsNone .
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kline-reconcile
+  namespace: ns-offline
+spec:
+  schedule: "30 15 * * 1-5"
+  timeZone: Asia/Shanghai
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reconcile
+              image: python:3.12-slim
+              workingDir: /app
+              command: ["python", "/app/scripts/kline_reconcile.py"]
+              args:
+                - --symbols=600519,000001,300750 # 对账标的清单（示例；生产按订阅/流动性筛选）
+                - --days=10
+                - --ck=http://clickhouse-hq.ns-infra.svc:8123
+              env:
+                - name: PYTHONPATH
+                  value: /app/scripts # 摊平挂载后 netguard 导入路径
+                - name: HQ_CLICKHOUSE_USER
+                  value: hqpush
+                - name: HQ_CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef: { name: reconcile-secrets, key: ck-password }
+              volumeMounts:
+                - { name: scripts, mountPath: /app/scripts }
+          volumes:
+            - name: scripts
+              configMap: { name: kline-reconcile-scripts }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: reconcile-secrets
+  namespace: ns-offline
+type: Opaque
+stringData:
+  ck-password: "" # 由流水线填充

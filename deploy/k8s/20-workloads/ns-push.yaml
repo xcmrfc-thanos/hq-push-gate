@@ -1,0 +1,165 @@
+# ns-push：WS 推送与通知。ws-gateway 缩容流程：SIGTERM 应用内 drain（DrainGrace 10s）
+# + preStop 兜底，terminationGracePeriodSeconds 60s（docs/06 §3.3）
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ws-gateway-config
+  namespace: ns-push
+data:
+  WS_GATEWAY_SLOTS: "0,1,2,3,4,5,6,7" # 64 槽由多实例分片；示例按 4 实例 × 8 槽
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ws-gateway
+  namespace: ns-push
+  labels: { app: ws-gateway }
+spec:
+  replicas: 4
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: ws-gateway }
+  template:
+    metadata:
+      labels: { app: ws-gateway }
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: ws-gateway }
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/ws-gateway:0.1.0
+          ports:
+            - { containerPort: 23024, name: ws }
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+            - configMapRef: { name: ws-gateway-config }
+          env:
+            - name: WS_GATEWAY_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: app-secrets, key: INTERNAL_TOKEN }
+            - name: WS_GATEWAY_JWT_SECRET
+              valueFrom:
+                secretKeyRef: { name: app-secrets, key: WS_GATEWAY_JWT_SECRET }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 23024 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 23024 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "5"] } # 停止接收新租约，应用 SIGTERM drain 收尾
+          resources:
+            # B24：按 docs/02 §6.2-B 内存预算上调（512Mi 连用户态连接状态都不足）
+            requests: { cpu: "1", memory: 1Gi }
+            limits: { cpu: "2", memory: 2Gi }
+      terminationGracePeriodSeconds: 60 # Pod spec 层字段（容器层为非法字段，API 直接拒绝整个 Deployment）
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ws-gateway
+  namespace: ns-push
+spec:
+  selector: { app: ws-gateway }
+  ports:
+    - { port: 23024, targetPort: 23024, name: ws }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ws-gateway
+  namespace: ns-push
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: ws-gateway }
+  minReplicas: 4
+  maxReplicas: 16
+  metrics:
+    # 按连接数扩容（需 prometheus-adapter 暴露 pods 自定义指标 ws_gateway_connections）
+    - type: Pods
+      pods:
+        metric:
+          name: ws_gateway_connections
+        target: { type: AverageValue, averageValue: "20000" }
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300 # 缩容缓释，给 drain 与客户端重连留时间
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ws-gateway
+  namespace: ns-push
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: ws-gateway }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notify
+  namespace: ns-push
+  labels: { app: notify }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: notify }
+  template:
+    metadata:
+      labels: { app: notify }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/notify:0.1.0
+          ports:
+            - { containerPort: 23023, name: http }
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+          env:
+            - name: NOTIFY_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: app-secrets, key: INTERNAL_TOKEN }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 23023 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 23023 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notify
+  namespace: ns-push
+spec:
+  selector: { app: notify }
+  ports:
+    - { port: 23023, targetPort: 23023, name: http }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notify
+  namespace: ns-push
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: notify }

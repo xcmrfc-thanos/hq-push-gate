@@ -1,0 +1,102 @@
+# Prometheus 告警与记录规则（docs/08 §7.1：死信增长、lag、推送成功率、服务下线必须可告警）
+# 注意：消费 lag 类告警（Kafka lag 水位）需 kafka_exporter，U1 接入后补充 lag 规则。
+groups:
+  # ---- 服务可用性 ----
+  - name: hq-availability
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"hq-gateway|quote-push|notify|ws-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务下线: {{ $labels.job }} ({{ $labels.instance }})"
+          description: "实例超过 1 分钟不可抓取，健康检查可能失败。"
+
+  # ---- 告警可靠性（docs/07 §6 验收线）----
+  - name: hq-alert-reliability
+    rules:
+      - alert: DeadLetterGrowing
+        expr: increase(notify_dead_letters_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "死信增长"
+          description: "15 分钟内新增 {{ $value }} 条死信，需人工排查并重放（docs/07：死信必须可观测、可重放、可审计）。"
+
+      - alert: NotifyRetryBacklog
+        expr: increase(notify_retries_total[10m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "notify 重试量异常"
+          description: "10 分钟重试 {{ $value }} 次，下游投递可能受阻（MySQL/Redis/路由索引）。"
+
+      - alert: AlertOfflineBacklog
+        expr: increase(notify_alert_offline_total[30m]) > 1000
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "离线投递积压"
+          description: "30 分钟内 {{ $value }} 条投递仅落库等待补拉，确认补拉窗口与 DB 压力。"
+
+  # ---- 链路健康 ----
+  - name: hq-pipeline
+    rules:
+      - alert: OutboxPublishFailing
+        expr: increase(outbox_publish_failures_total[10m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "outbox 发布失败"
+          description: "10 分钟 {{ $value }} 次发布 rule_bcast 失败，规则同步将延迟。"
+
+      - alert: OutboxDeadEvents
+        expr: increase(outbox_dead_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "outbox 事件超过重试上限"
+          description: "存在超限 FAILED 事件，需人工修复后重置状态重放。"
+
+      # 写入失败会导致消费 lag 增长与明细缺失
+      - alert: IngestWriteErrors
+        expr: increase(ingest_write_errors_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse 写入失败"
+          description: "10 分钟 {{ $value }} 次写入失败，明细数据将依赖重放。"
+
+      - alert: WsStaleMessagesSurge
+        expr: increase(ws_stale_messages_total[10m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ws-gateway fencing 过滤量异常"
+          description: "10 分钟过滤 {{ $value }} 条旧实例消息，槽位租约可能频繁迁移或存在僵尸实例。"
+
+      - alert: WsAckForwardFailing
+        expr: rate(ws_acks_failed_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WS ACK 转发失败率过高"
+          description: "ACK 转发持续失败，投递状态将停留 PENDING/SENT，依赖补拉兜底。"
+
+      - alert: QuotePushStalled
+        expr: rate(quote_push_ws_push_messages_total[5m]) == 0 and rate(quote_push_ticks_consumed_total[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "quote-push 消费中但未产出 ws_push"
+          description: "消费与扇出失衡：路由索引为空或写入持续失败。"

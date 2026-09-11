@@ -1,0 +1,87 @@
+# Build artifacts
+bin/
+dist/
+target/
+build/
+*.exe
+*.test
+*.out
+
+# Go
+coverage.txt
+vendor/
+
+# Java
+flink/target/
+services/biz-service/target/
+*.class
+
+# Node
+node_modules/
+apps/*/dist/
+packages/*/dist/
+*.tsbuildinfo
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.csr
+*.pfx
+*.p12
+*.jks
+deploy/apisix/certs/*
+!deploy/apisix/certs/.gitkeep
+
+# Runtime data and logs
+data/
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / local tooling
+.idea/
+.vscode/
+.history/
+.code-review-graph/
+.mimosa/
+.codex/
+.zcode/
+.claude/
+.cursor/
+.windsurf/
+.trae/
+kilo.json
+CLAUDE.md
+AGENTS.md
+.mcp.json
+
+# OS
+Thumbs.db
+.DS_Store
+~$*
+
+# 本地临时验证脚本（不入库）
+temp/
+
+# 内部计划/过程文档（不入库）
+docs/superpowers/
+
+# Seed 数据文件（含明文凭据，仅存在于部署机）
+scripts/seed/providers.json

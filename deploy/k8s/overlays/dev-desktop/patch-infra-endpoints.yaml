@@ -1,0 +1,29 @@
+# 基础设施指向宿主机 docker compose（Docker Desktop host-gateway）。
+# 键名与 10-config/infra.yaml 一致（各服务 configx 完整 env 名），仅覆盖值为 dev 地址。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-endpoints
+data:
+  HQ_GATEWAY_KAFKA_BROKERS: host.docker.internal:23003
+  QUOTE_PUSH_KAFKA_BROKERS: host.docker.internal:23003
+  QUOTE_PUSH_REDIS_ADDR: host.docker.internal:23002
+  WS_GATEWAY_KAFKA_BROKERS: host.docker.internal:23003
+  WS_GATEWAY_REDIS_ADDR: host.docker.internal:23002
+  WS_GATEWAY_NOTIFY_URL: http://notify.ns-push.svc:23023
+  NOTIFY_KAFKA_BROKERS: host.docker.internal:23003
+  NOTIFY_REDIS_ADDR: host.docker.internal:23002
+  NOTIFY_MYSQL_DSN: "hqpush:hqpush@tcp(host.docker.internal:23001)/hqpush?parseTime=true&loc=Local"
+  NOTIFY_NOTIFY_ADDR: http://notify.ns-push.svc:23023
+  HQ_CLICKHOUSE_URL: http://host.docker.internal:23004
+  HQ_MYSQL_HOST: host.docker.internal
+  HQ_MYSQL_PORT: "23001"
+  HQ_REDIS_HOST: host.docker.internal
+  HQ_REDIS_PORT: "23002"
+  HQ_GATEWAY_URL: http://hq-gateway.ns-realtime.svc:23021
+  HQ_NOTIFY_URL: http://notify.ns-push.svc:23023
+  INGEST_KAFKA_BROKERS: host.docker.internal:23003
+  INGEST_CLICKHOUSE_DSN: "clickhouse://host.docker.internal:23005/default?username=hqpush&password=hqpush"
+  OUTBOX_PUB_KAFKA_BROKERS: host.docker.internal:23003
+  OUTBOX_PUB_MYSQL_DSN: "hqpush:hqpush@tcp(host.docker.internal:23001)/hqpush?parseTime=true&loc=Local"
+  HQ_REDIS_URL: redis://host.docker.internal:23002/0

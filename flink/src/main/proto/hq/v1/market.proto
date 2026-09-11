@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package hq.v1;
+
+option go_package = "github.com/hqpush/gate/packages/contract/go/hq/v1;hqv1";
+option java_package = "com.hqpush.contract.hqv1";
+option java_multiple_files = true;
+option java_outer_classname = "MarketProto";
+
+import "hq/v1/common.proto";
+
+// 标准化行情 tick —— 全链路统一携带 market
+message Tick {
+  Market market       = 1;
+  string symbol       = 2;   // 600000 / AAPL / 00700 / BTC-USDT
+  string exchange     = 3;
+  int64  timestamp_ms = 4;
+  double last_price   = 5;
+  double open         = 6;
+  double high         = 7;
+  double low          = 8;
+  double pre_close    = 9;   // 昨收，用于涨跌幅
+  double volume       = 10;  // 累计成交量
+  double amount       = 11;  // 累计成交额
+}
+
+// 周期闭合K线
+message Kline {
+  Market market       = 1;
+  string symbol       = 2;
+  int32  period_min   = 3;   // 1/5/15/30/60/1440(日)
+  int64  begin_ts_ms  = 4;
+  double open         = 5;
+  double high         = 6;
+  double low          = 7;
+  double close        = 8;
+  double volume       = 9;
+  double amount       = 10;
+}

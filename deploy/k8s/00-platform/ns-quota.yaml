@@ -1,0 +1,98 @@
+# 平台基座：命名空间 / ResourceQuota / PriorityClass（docs/06 §3.1，realtime 最高优先级）
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-realtime
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-push
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-query
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-ai
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-offline
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-infra
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: realtime-high
+value: 100000
+globalDefault: false
+description: 实时链路（行情接入/聚合/推送）最高抢占优先级
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: hq-normal
+value: 10000
+globalDefault: true
+description: 查询/推送/离线业务默认优先级
+---
+# 各命名空间配额（初始值，按压测数据在 Branch 7 调整）
+# B24：Flink 作业（2 JM HA + 2~4 TM，各 2Gi/1C）已归位 ns-realtime（docs/02 §8），
+# 配额随之由 8C/8Gi 上调至 16C/24Gi。
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: ns-realtime
+spec:
+  hard:
+    requests.cpu: "16"
+    requests.memory: 24Gi
+    limits.cpu: "16"
+    limits.memory: 24Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: ns-push
+spec:
+  hard:
+    requests.cpu: "16"
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: ns-query
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 8Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: ns-offline
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi

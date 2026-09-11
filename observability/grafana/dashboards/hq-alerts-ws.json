@@ -1,0 +1,71 @@
+{
+  "uid": "hq-alerts-ws",
+  "title": "hq-push-gate · 告警可靠性与 WS",
+  "tags": ["hq-push-gate", "alerts", "ws"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "告警处理与投递",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(rate(notify_alert_events_total[1m]))", "legendFormat": "alert_event 处理" },
+        { "expr": "sum(rate(notify_alert_delivered_total[1m])) by (gateway)", "legendFormat": "投递 ws_push ({{gateway}})" },
+        { "expr": "sum(rate(notify_alert_offline_total[1m]))", "legendFormat": "离线仅落库" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "重试与死信增长",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(increase(notify_retries_total[5m]))", "legendFormat": "重试" },
+        { "expr": "sum(increase(notify_dead_letters_total[5m]))", "legendFormat": "死信" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 25 } }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "WS 推送与 ACK",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(rate(ws_quote_frames_total[1m]))", "legendFormat": "行情帧" },
+        { "expr": "sum(rate(ws_alert_pushes_total[1m]))", "legendFormat": "告警推送" },
+        { "expr": "sum(rate(ws_acks_forwarded_total[1m]))", "legendFormat": "ACK 转发成功" },
+        { "expr": "sum(rate(ws_acks_failed_total[1m]))", "legendFormat": "ACK 转发失败" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "WS 连接数与 fencing 过滤",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(ws_connections)", "legendFormat": "在线连接" },
+        { "expr": "sum(increase(ws_stale_messages_total[5m]))", "legendFormat": "stale 过滤(5m)" }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "table", "title": "投递可靠性口径（docs/07 §6 验收线，人工核对）",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 18 },
+      "datasource": { "type": "datasource", "uid": "grafana" },
+      "targets": [
+        {
+          "datasource": { "type": "datasource", "uid": "grafana" },
+          "queryType": "snapshot",
+          "snapshot": [
+            { "验收项": "服务端事件丢失", "口径": "Kafka + alert-inbox 保留窗口(72h)内 = 0", "佐证": "死信面板 + DeadLetterGrowing 告警" },
+            { "验收项": "窗口内可补拉", "口径": "100%", "佐证": "离线仅落库计数 + /alerts 补拉接口" },
+            { "验收项": "重复投递去重", "口径": "delivery_id 幂等", "佐证": "客户端去重 + ACK 幂等" }
+          ]
+        }
+      ]
+    }
+  ]
+}

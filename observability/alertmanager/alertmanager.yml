@@ -1,0 +1,27 @@
+# Alertmanager 路由（U1：接入告警通知；接收器按环境替换 webhook/钉钉/企业微信等）
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: [alertname, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: critical
+      matchers:
+        - severity = "critical"
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: default
+    webhook_configs:
+      # U0 演示：指向不存在的本地接收器仅记录发送失败，不阻塞告警流程；接入时替换 URL
+      - url: "http://localhost:5001/alerts"
+        send_resolved: true
+  - name: critical
+    webhook_configs:
+      - url: "http://localhost:5001/alerts"
+        send_resolved: true

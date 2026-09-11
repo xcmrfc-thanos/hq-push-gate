@@ -1,0 +1,7 @@
+version: v2
+# 生成说明：本地运行 `make proto-gen`。
+# 依赖 buf 本体与 protoc-gen-go（见 scripts/install-tools.sh），不依赖 protoc。
+plugins:
+  - local: protoc-gen-go
+    out: packages/contract/go
+    opt: paths=source_relative

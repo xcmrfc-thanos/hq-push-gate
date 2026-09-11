@@ -1,0 +1,9 @@
+[
+  {"question": "股价大于10元", "expected": {"type": "PRICE_ABOVE", "threshold": 10}},
+  {"question": "跌到5元以下", "expected": {"type": "PRICE_BELOW", "threshold": 5}},
+  {"question": "价格在15到25之间", "expected": {"type": "PRICE_RANGE", "low": 15, "high": 25}},
+  {"question": "涨跌幅超过5%的股票", "expected": {"type": "PCT_CHANGE", "threshold": 5}},
+  {"question": "成交量大于50万股", "expected": {"type": "VOLUME_ABOVE", "threshold": 500000}},
+  {"question": "今天帮我查一下明天会涨停的", "expected": null},
+  {"question": "优质白马股推荐", "expected": null}
+]

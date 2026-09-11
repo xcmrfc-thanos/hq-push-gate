@@ -1,0 +1,13 @@
+{
+  "name": "hq-push-gate",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:pc": "npm run build --workspace apps/pc-web",
+    "build:h5": "npm run build --workspace apps/h5",
+    "build": "npm run build:pc && npm run build:h5"
+  }
+}

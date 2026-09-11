@@ -1,0 +1,58 @@
+# dev-desktop：Docker Desktop 单节点 K8s 实机回归 overlay。
+#
+# 定位：U1 加固/M3 实机回归/M4 降规模演练环境——无状态服务全量容器化，
+# 基础设施（MySQL/Kafka/CK/Redis）复用宿主机 docker compose（pod 经
+# host.docker.internal 直连，compose 的 Kafka 广播地址即 host.docker.internal:23003）。
+# 有状态 Operator（40-stateful）与对账 CronJob（30-jobs）不在此 overlay：
+# 前者待独立资源池，后者依赖 ConfigMap 跨目录生成（kustomize --load-restrictor）。
+#
+# LLM 凭据：ai-query 引用 ns-ai/llm-credentials，由本地执行（不入库）：
+#   kubectl create secret generic llm-credentials -n ns-ai \
+#     --from-env-file=.env --from-literal=HQ_CLICKHOUSE_PASSWORD=hqpush --dry-run=client -o yaml | kubectl apply -f -
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../00-platform
+  - ../../10-config
+  - ../../20-workloads
+
+images:
+  - name: ghcr.io/hqpush/hq-gateway
+    newName: hqpush/hq-gateway
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/quote-push
+    newName: hqpush/quote-push
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/ws-gateway
+    newName: hqpush/ws-gateway
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/notify
+    newName: hqpush/notify
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/outbox-publisher
+    newName: hqpush/outbox-publisher
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/ingest-worker
+    newName: hqpush/ingest-worker
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/biz-service
+    newName: hqpush/biz-service
+    newTag: 0.1.0
+  - name: ghcr.io/hqpush/ai-query
+    newName: hqpush/ai-query
+    newTag: 0.1.0
+
+# 基础设施指向宿主机 compose（Docker Desktop 的 host-gateway 特性）；
+# 三个 ns 的 infra-endpoints 同名，target 不限 namespace 全部覆盖
+patches:
+  - path: patch-infra-endpoints.yaml
+    target:
+      kind: ConfigMap
+      name: infra-endpoints
+  - path: patch-hq-gateway-sim.yaml
+    target:
+      kind: Deployment
+      name: hq-gateway
+      namespace: ns-realtime
+# 已知限制：ws-gateway HPA 的 pods 自定义指标依赖 prometheus-adapter（本环境未部署），
+# HPA 状态会报 FailedGetResourceMetric 但不影响 Deployment 运行；演练扩缩容语义时再部署 adapter

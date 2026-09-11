@@ -1,0 +1,19 @@
+# dev-desktop 专用：hq-gateway 开启内置 sim 源（1000 tick/s）供 K8s 全链路演练/压测。
+# 生产清单 HQ_GATEWAY_SOURCE 默认 off，不携带本 patch。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hq-gateway
+  namespace: ns-realtime
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          env:
+            - name: HQ_GATEWAY_SOURCE
+              value: "sim"
+            - name: HQ_GATEWAY_SIM_RATE
+              value: "1000"
+            - name: HQ_GATEWAY_SIM_SYMBOLS
+              value: "8"

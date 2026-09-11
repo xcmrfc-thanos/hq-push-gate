@@ -1,0 +1,57 @@
+# 边缘网关：APISIX Ingress Controller（docs/07 §2 冻结语义：TLS 终止 + 边缘 JWT + 限流 + 路由）
+# 安装（helm）：
+#   helm repo add apisix https://charts.apiseven.com
+#   helm install apisix apisix/apisix \
+#     -n ns-push --create-namespace -f apisix-helm-values.yaml
+# 路由语义与 deploy/apisix/apisix.yaml 一致，经 ApisixRoute CR 下发（网关侧 jwt-auth/limit-count 插件
+# 白名单与 standalone 开发配置相同）。
+---
+# 示例：ApisixRoute（REST + WS + internal 显式拒绝），与 deploy/apisix/apisix.yaml 对齐
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: rest-api
+  namespace: ns-query
+spec:
+  http:
+    - name: rest-api
+      match: { paths: ["/api/*"] }
+      backends:
+        - serviceName: biz-service
+          servicePort: 23026
+      authentication:
+        enable: true
+        type: jwtAuth
+        jwtAuth: { key: hqweb-key }
+      plugins:
+        - name: limit-count
+          enable: true
+          config:
+            count: 120
+            time_window: 60
+            rejected_code: 429
+            key: remote_addr
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: ws-gateway
+  namespace: ns-push
+spec:
+  http:
+    - name: ws
+      match: { paths: ["/ws"] }
+      backends:
+        - serviceName: ws-gateway
+          servicePort: 23024
+      websocket: true
+      authentication:
+        enable: true
+        type: jwtAuth
+        jwtAuth: { key: hqweb-key, query: token }
+      plugins:
+        - name: limit-conn
+          enable: true
+          config: { conn: 10, burst: 5, default_conn_delay: 0.1, key: remote_addr }
+---
+# internal/* 不创建公网路由；网关显式 403 与开发态一致（apisix.yaml fault-injection 语义）

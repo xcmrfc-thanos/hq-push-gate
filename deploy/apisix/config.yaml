@@ -1,0 +1,30 @@
+# APISIX data plane 配置（standalone 模式，无 etcd；docs/07 §2 冻结：APISIX 终止公网 TLS、
+# 负责路由、边缘限流和基础 JWT 校验。生产集群模式换 control plane + etcd，路由语义不变。）
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+
+apisix:
+  node_listen:
+    - 9080
+  ssl:
+    enable: true
+    listen_port:
+      - 9443
+
+# 插件白名单：仅启用本网关实际使用的插件，减少攻击面
+plugins:
+  - jwt-auth
+  - limit-count
+  - limit-conn
+  - limit-req
+  - proxy-rewrite
+  - prometheus
+  - fault-injection
+
+plugin_attr:
+  prometheus:
+    export_addr:
+      ip: "0.0.0.0"
+      port: 9091

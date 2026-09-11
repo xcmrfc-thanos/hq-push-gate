@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - operators-cr.yaml
+# 说明：CR 依赖各 Operator 先行安装（README 前置清单）；
+# kubectl apply -k 时若未装 Operator 会在 CRD 校验处失败，属预期。

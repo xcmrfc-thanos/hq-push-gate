@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: hq-push-gate
+    orgId: 1
+    folder: hq-push-gate
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

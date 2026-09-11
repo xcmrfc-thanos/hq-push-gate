@@ -1,0 +1,103 @@
+# APISIX 路由 / 消费者 / TLS 定义（standalone yaml，改动后重启容器生效）
+#
+# 边界口径（docs/07 §5.3 冻结）：
+#   - 公网 TLS 在 APISIX 终止；边缘做基础 JWT 校验（与 biz-service/ws-gateway 共用 HS256 密钥）
+#   - ws-gateway 在 Upgrade 阶段仍做业务复核（短期 token + 用户/标的授权），网关校验不是替代
+#   - 内部 API（/internal/*）不创建公网路由，网关显式 403；notify(8083) 本身不在网关后
+
+consumers:
+  - username: hqweb
+    plugins:
+      jwt-auth:
+        key: hqweb-key
+        # 与 biz-service TokenService 的开发密钥对齐：dev-jwt-secret 右填充 '0' 至 32 字节（HS256 要求 256 位）。
+        # 生产通过部署流水线注入真实密钥，禁止提交。
+        secret: "dev-jwt-secret000000000000000000"
+        algorithm: HS256
+
+routes:
+  # ---- REST API：边缘 JWT + IP 限流（60s 窗口 120 次，超限 429）----
+  # 上游为容器网络内服务端口（业务服务统一监听 23021~23026，宿主机映射同号段）
+  - uri: /api/*
+    name: rest-api
+    upstream:
+      nodes:
+        "biz-service:23026": 1
+      type: roundrobin
+    plugins:
+      jwt-auth: {}
+      limit-count:
+        count: 120
+        time_window: 60
+        rejected_code: 429
+        key: remote_addr
+
+  # ---- WebSocket：WSS Upgrade 代理 + 单 IP 并发连接限流 ----
+  # token 走查询参数（?token=...），jwt-auth 从 query 校验；订阅上限/帧速率由 ws-gateway 复核
+  - uri: /ws
+    name: ws-gateway
+    upstream:
+      nodes:
+        "ws-gateway:23024": 1
+      type: roundrobin
+    enable_websocket: true
+    plugins:
+      jwt-auth:
+        query: token
+      limit-conn:
+        conn: 10
+        burst: 5
+        default_conn_delay: 0.1
+        key: remote_addr
+      limit-req:
+        rate: 5
+        burst: 2
+        rejected_code: 429
+        key: remote_addr
+
+  # ---- 内部 API：显式拒绝，不出公网 ----
+  - uri: /internal/*
+    name: internal-deny
+    upstream:
+      nodes:
+        "127.0.0.1:1": 1 # 黑洞节点（不会被命中：fault-injection 先行中断）
+    plugins:
+      fault-injection:
+        abort:
+          http_status: 403
+          body: "forbidden"
+
+  # ---- AI 筛选：NL2Condition（ai-query FastAPI，宿主机进程经 host-gateway 访问）----
+  - uri: /ai/*
+    name: ai-query
+    upstream:
+      nodes:
+        "host.docker.internal:23041": 1
+      type: roundrobin
+    plugins:
+      jwt-auth: {}
+      proxy-rewrite:
+        regex_uri: ["^/ai/(.*)$", "/api/v1/ai/$1"] # 公网短路径 → 服务内部路径
+      limit-count:
+        count: 30
+        time_window: 60
+        rejected_code: 429
+        key: remote_addr
+
+# ---- TLS：自签开发证书 ----
+# 注意：standalone 模式下 ssls.cert/key 只接受 PEM 内容字符串（schema 要求 >=128 字符），
+# 不接受文件路径；且 SNI 匹配失败会直接中断握手，不会回落到 nginx 默认证书。
+# 证书（含私钥）不入库。回填步骤：
+#   1) bash scripts/gen-dev-cert.sh    # 生成 deploy/apisix/certs/dev.crt / dev.key（CN/SAN=localhost，仅本地开发用）
+#   2) 将 dev.crt 内容粘贴到下方 cert: |，dev.key 内容粘贴到 key: |（保持 6 空格缩进）；
+#      占位符不满足 schema 的 >=128 字符校验，APISIX 启动前必须替换为真实 PEM。
+# 生产通过部署流水线挂载托管/CA 证书，禁止提交真实私钥。
+ssls:
+  - cert: |
+      <paste dev.crt PEM here — run scripts/gen-dev-cert.sh>
+    key: |
+      <paste dev.key PEM here — run scripts/gen-dev-cert.sh>
+    snis:
+      - "localhost"
+
+#END

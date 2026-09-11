@@ -1,0 +1,199 @@
+# U0 开发环境（docs/08 §3.1）：MySQL/Redis/Kafka/ClickHouse 单实例 + Flink 单 JM/TM。
+# Doris、Debezium、AI 关闭。生产拓扑见 docs/06。
+#
+# 宿主机端口统一规划（从 23001 起，避开系统常用端口）：
+#   23001 MySQL | 23002 Redis | 23003 Kafka | 23004 CK HTTP | 23005 CK native
+#   23006 Flink UI | 23007 Prometheus | 23008 Grafana | 23009 Alertmanager
+#   23010 APISIX HTTP | 23011 APISIX HTTPS/WSS | 23012 APISIX metrics
+#   23013+ 预留（Doris/Debezium）
+# 业务服务监听端口见各服务 config（23021~23026）；前端 dev 23031/23032。
+name: hq-push-gate
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      TZ: Asia/Shanghai # 与宿主机 Go 进程时区对齐：outbox next_retry_at 用本地时间写，NOW() 必须
+                        # 同口径否则重试永不触发（2026-09-07 联调实测修复）
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: hqpush
+      MYSQL_USER: hqpush
+      MYSQL_PASSWORD: hqpush
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    ports: ["23001:3306"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../migrations/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uhqpush", "-phqpush"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    ports: ["23002:6379"]
+    volumes: [redis_data:/data]
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:4.1.0
+    ports: ["23003:9092"]
+    extra_hosts: ["host.docker.internal:host-gateway"] # 容器内管理工具解析广播地址
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data # 镜像默认 /tmp，容器重建即失数据；落到 named volume
+      KAFKA_PROCESS_ROLES: broker,controller
+      # 广播 localhost:23003：U1 内测"全部 Kafka 客户端跑宿主机"（Go 服务/Flink MiniCluster/biz），
+      # 宿主机回连 LAN IP 会被防火墙拦（实测 i/o timeout，2026-09-07 联调修复）；
+      # 容器内客户端（kafka-init）用 BOOTSTRAP=kafka:9092 直连，topics 建好后无需再跑。
+      # 迁移 K8s 时按集群 DNS 重配（docs/09 §3.1）。
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:23003
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - ./kafka-init.sh:/kafka-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:4.1.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    extra_hosts: ["host.docker.internal:host-gateway"] # broker 广播地址重定向后仍可连通
+    environment:
+      BOOTSTRAP: kafka:9092 # 独立容器内 localhost 指向自身，必须用服务名
+    entrypoint: ["/bin/bash", "/kafka-init.sh"]
+    volumes:
+      - ./kafka-init.sh:/kafka-init.sh:ro
+
+  # 公网入口网关（U1，docs/07 §2）：TLS 终止 + 边缘 JWT + 限流 + 路由；standalone 无 etcd
+  apisix:
+    image: apache/apisix:3.13.0-debian
+    profiles: ["edge"]
+    ports:
+      - "23010:9080"  # HTTP（开发演示；生产可仅保留 HTTPS 并强制跳转）
+      - "23011:9443"  # HTTPS / WSS
+      - "23012:9091"  # Prometheus 指标
+    environment:
+      APISIX_STAND_ALONE: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # ai-query 等宿主机进程 upstream 的 DNS 解析
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    healthcheck:
+      # 镜像内无 curl/wget；用 openssl 验证 9443 TLS 握手（证书加载失败时握手会被中断）
+      test: ["CMD-SHELL", "echo | openssl s_client -connect 127.0.0.1:9443 -servername localhost 2>/dev/null | grep -q 'BEGIN CERTIFICATE'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.3
+    ports: ["23004:8123", "23005:9000"]
+    environment:
+      CLICKHOUSE_USER: hqpush
+      CLICKHOUSE_PASSWORD: hqpush
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ../migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  flink-jobmanager:
+    image: flink:1.20-java21
+    profiles: ["flink"]
+    ports: ["23006:8081"]
+    extra_hosts: ["host.docker.internal:host-gateway"] # 作业连接 Kafka 广播地址 host.docker.internal:23003
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+    command: jobmanager
+
+  flink-taskmanager:
+    image: flink:1.20-java21
+    profiles: ["flink"]
+    depends_on: [flink-jobmanager]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    command: taskmanager
+
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    profiles: ["obs"]
+    ports: ["23007:9090"]
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: [alertmanager]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: ["obs"]
+    ports: ["23009:9093"]
+    volumes:
+      - ../observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    profiles: ["obs"]
+    ports: ["23008:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  # Doris 单节点（all-in-one，FE+BE；docs/04 §4 外表映射/自有表明细归档）。
+  # 资源要求高（≥4GB 内存），按需 --profile doris 启用；/quote/kline 读路径 U0 直读 CK（docs/09 §5.1）
+  doris:
+    image: apache/doris:doris-all-in-one-2.1.7-x86_64
+    profiles: ["doris"]
+    ports:
+      - "23013:8030" # FE HTTP
+      - "23014:9030" # FE MySQL 协议查询口
+    environment:
+      FE_SERVERS: "fe1:host.docker.internal:9010"
+      FE_ID: 1
+      BE_MEM_LIMIT: "4294967296"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - doris_fe:/opt/apache-doris/fe/doris-meta
+      - doris_be:/opt/apache-doris/be/storage
+
+volumes:
+  mysql_data:
+  redis_data:
+  kafka_data:
+  clickhouse_data:
+  grafana_data:
+  doris_fe:
+  doris_be:

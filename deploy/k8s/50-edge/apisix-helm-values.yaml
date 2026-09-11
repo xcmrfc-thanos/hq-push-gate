@@ -1,0 +1,29 @@
+# APISIX Helm values（对齐 docs/07 §2；完整 values 参见 apisix charts）
+gateway:
+  type: LoadBalancer
+  tls:
+    enabled: true
+    # 证书由 cert-manager 挂管（生产托管证书）；开发用自签见 scripts/gen-dev-cert.sh
+admin:
+  enabled: true # 路由经 ApisixRoute CR 下发，Admin API 仅集群内
+configmap:
+  # 插件白名单与 deploy/apisix/config.yaml 一致，减少攻击面
+  apisix:
+    plugins:
+      - jwt-auth
+      - limit-count
+      - limit-conn
+      - limit-req
+      - proxy-rewrite
+      - prometheus
+      - fault-injection
+plugins:
+  - prometheus
+  - jwt-auth
+  - limit-count
+  - limit-conn
+  - limit-req
+  - proxy-rewrite
+  - fault-injection
+serviceMonitor:
+  enabled: true # Prometheus Operator 采集网关指标

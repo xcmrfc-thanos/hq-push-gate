@@ -1,0 +1,85 @@
+# 服务公共配置（集群内基础设施地址；敏感项经 Secret 注入，禁止入库）。
+# 键名必须与各服务 configx 前缀约定一致（HQ_GATEWAY_/QUOTE_PUSH_/...，docs/08）：
+# 无前缀键（如 KAFKA_BROKERS）不会被任何服务读取——M3 实机回归发现的清单 bug 教训。
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-endpoints
+  namespace: ns-realtime
+data:
+  HQ_GATEWAY_KAFKA_BROKERS: hq-kafka-bootstrap.ns-infra.svc:9092
+  QUOTE_PUSH_KAFKA_BROKERS: hq-kafka-bootstrap.ns-infra.svc:9092
+  QUOTE_PUSH_REDIS_ADDR: redis-hq-master.ns-infra.svc:6379
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-endpoints
+  namespace: ns-push
+data:
+  WS_GATEWAY_KAFKA_BROKERS: hq-kafka-bootstrap.ns-infra.svc:9092
+  WS_GATEWAY_REDIS_ADDR: redis-hq-master.ns-infra.svc:6379
+  WS_GATEWAY_NOTIFY_URL: http://notify.ns-push.svc:23023
+  NOTIFY_KAFKA_BROKERS: hq-kafka-bootstrap.ns-infra.svc:9092
+  NOTIFY_REDIS_ADDR: redis-hq-master.ns-infra.svc:6379
+  NOTIFY_MYSQL_DSN: "hqpush:FROM_SECRET@tcp(mysql-hq.ns-infra.svc:3306)/hqpush?parseTime=true&loc=Local"
+  NOTIFY_NOTIFY_ADDR: http://notify.ns-push.svc:23023
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-endpoints
+  namespace: ns-query
+data:
+  HQ_CLICKHOUSE_URL: http://clickhouse-hq.ns-infra.svc:8123
+  HQ_MYSQL_HOST: mysql-hq.ns-infra.svc
+  HQ_MYSQL_PORT: "3306"
+  HQ_REDIS_HOST: redis-hq-master.ns-infra.svc
+  HQ_REDIS_PORT: "6379"
+  HQ_GATEWAY_URL: http://hq-gateway.ns-realtime.svc:23021
+  HQ_NOTIFY_URL: http://notify.ns-push.svc:23023
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-endpoints
+  namespace: ns-offline
+data:
+  INGEST_KAFKA_BROKERS: hq-kafka-bootstrap.ns-infra.svc:9092
+  INGEST_CLICKHOUSE_DSN: "clickhouse://clickhouse-hq.ns-infra.svc:9000/default?username=hqpush&password=FROM_SECRET"
+  OUTBOX_PUB_KAFKA_BROKERS: hq-kafka-bootstrap.ns-infra.svc:9092
+  OUTBOX_PUB_MYSQL_DSN: "hqpush:FROM_SECRET@tcp(mysql-hq.ns-infra.svc:3306)/hqpush?parseTime=true&loc=Local"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-endpoints
+  namespace: ns-ai
+data:
+  HQ_CLICKHOUSE_URL: http://clickhouse-hq.ns-infra.svc:8123
+  HQ_REDIS_URL: redis://redis-hq-master.ns-infra.svc:6379/0
+---
+# 敏感配置骨架：值由部署流水线注入（docs/07：生产密钥禁止提交）。
+# 键名与各服务读取的完整 env 名一致（configx 前缀约定）。
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: ns-query
+type: Opaque
+stringData:
+  HQ_JWT_SECRET: ""        # ≥32 字节，与边缘 APISIX 对齐
+  HQ_MYSQL_PASSWORD: ""
+  HQ_CLICKHOUSE_PASSWORD: ""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: ns-push
+type: Opaque
+stringData:
+  WS_GATEWAY_JWT_SECRET: ""
+  WS_GATEWAY_INTERNAL_TOKEN: ""
+  NOTIFY_INTERNAL_TOKEN: ""

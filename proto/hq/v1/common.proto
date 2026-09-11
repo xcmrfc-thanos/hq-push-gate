@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package hq.v1;
+
+option go_package = "github.com/hqpush/gate/packages/contract/go/hq/v1;hqv1";
+option java_package = "com.hqpush.contract.hqv1";
+option java_multiple_files = true;
+option java_outer_classname = "CommonProto";
+
+enum Market {
+  A_SHARE = 0;
+  HK = 1;
+  US = 2;
+  CRYPTO = 3;
+}

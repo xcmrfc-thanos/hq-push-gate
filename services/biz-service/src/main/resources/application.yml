@@ -1,0 +1,42 @@
+server:
+  port: 23026
+
+spring:
+  application:
+    name: biz-service
+  datasource:
+    # 127.0.0.1 明确 IPv4：本机 ::1 可能被 wslrelay 等进程占用，localhost 双栈解析不稳定
+    url: jdbc:mysql://${HQ_MYSQL_HOST:127.0.0.1}:${HQ_MYSQL_PORT:23001}/hqpush?useSSL=false&connectionTimeZone=LOCAL&allowPublicKeyRetrieval=true
+    username: ${HQ_MYSQL_USER:hqpush}
+    password: ${HQ_MYSQL_PASSWORD:hqpush}
+  data:
+    redis:
+      host: ${HQ_REDIS_HOST:127.0.0.1}
+      port: ${HQ_REDIS_PORT:23002}
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+hq:
+  jwt:
+    secret: ${HQ_JWT_SECRET:dev-jwt-secret}
+  notify:
+    url: ${HQ_NOTIFY_URL:http://127.0.0.1:23023}
+    token: ${HQ_INTERNAL_TOKEN:dev-internal-token}
+  clickhouse:
+    url: ${HQ_CLICKHOUSE_URL:http://127.0.0.1:23004}
+    user: ${HQ_CLICKHOUSE_USER:hqpush}
+    password: ${HQ_CLICKHOUSE_PASSWORD:hqpush}
+  gateway:
+    url: ${HQ_GATEWAY_URL:http://127.0.0.1:23021}
+  internal:
+    token: ${HQ_INTERNAL_TOKEN:dev-internal-token}
+  bench:
+    enabled: ${HQ_BENCH_ENABLED:false} # /admin/bench/* 总开关（压测机开启）
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

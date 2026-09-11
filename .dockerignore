@@ -1,0 +1,23 @@
+# 构建上下文根目录排除物（保持 context 精简）
+.git
+.idea
+.vscode
+.mimosa
+.zcode
+.codex
+.code-review-graph
+node_modules
+**/node_modules
+**/target
+!services/biz-service/target/biz-service-1.0.0.jar
+**/dist
+**/__pycache__
+**/.pytest_cache
+data
+logs
+*.log
+docs
+bench
+tmp
+.env
+.mcp.json

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - kline-reconcile.yaml
+# netguard.py / kline_reconcile.py 从仓库脚本生成（scripts/backfill + scripts/reconcile）：
+configMapGenerator:
+  - name: kline-reconcile-scripts
+    files:
+      - ../../scripts/backfill/netguard.py
+      - ../../scripts/reconcile/kline_reconcile.py
+# 应用需关闭 load restrictor：
+#   kustomize build --load-restrictor LoadRestrictionsNone . | kubectl apply -f -

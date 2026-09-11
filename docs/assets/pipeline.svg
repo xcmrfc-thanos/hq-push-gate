@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" font-family="Segoe UI, PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#0C1530"/>
+      <stop offset="55%" stop-color="#080E1E"/>
+      <stop offset="100%" stop-color="#05080F"/>
+    </radialGradient>
+    <linearGradient id="gGo" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+    <linearGradient id="gKafka" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="gFlink" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FB7185"/><stop offset="100%" stop-color="#F472B6"/>
+    </linearGradient>
+    <linearGradient id="gNum" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#67E8F9"/><stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22D3EE"/><stop offset="50%" stop-color="#818CF8"/><stop offset="100%" stop-color="#F472B6"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#131F38" stroke-width="1" opacity="0.5"/>
+    </pattern>
+    <filter id="glowSm" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="mC" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#22D3EE"/></marker>
+    <marker id="mP" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#A78BFA"/></marker>
+    <marker id="mK" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#F472B6"/></marker>
+    <marker id="mG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#34D399"/></marker>
+  </defs>
+
+  <rect width="1600" height="520" fill="url(#bg) #0C1530"/>
+  <rect width="1600" height="520" fill="url(#grid) #0C1530"/>
+  <rect x="0" y="0" width="1600" height="3" fill="url(#lineGrad) #22D3EE" opacity="0.85"/>
+
+  <text x="800" y="38" text-anchor="middle" font-size="20" font-weight="700" letter-spacing="3" fill="#EAF2FF">实时主链路 · HOT PATH</text>
+  <text x="800" y="60" text-anchor="middle" font-size="12" letter-spacing="2" fill="#8FA3C0">行情 → 规则命中 / 快照扇出 → 客户端 · 端到端延迟预算</text>
+  <rect x="700" y="70" width="200" height="2" rx="1" fill="url(#lineGrad) #22D3EE"/>
+
+  <!-- main flow arrows -->
+  <g stroke-width="1.6" fill="none">
+    <line x1="186" y1="192" x2="226" y2="192" stroke="#22D3EE" marker-end="url(#mC)"/>
+    <line x1="416" y1="192" x2="456" y2="192" stroke="#22D3EE" marker-end="url(#mC)"/>
+    <path d="M 626 178 H 650 V 116 H 676" stroke="#22D3EE" marker-end="url(#mC)"/>
+    <line x1="626" y1="192" x2="676" y2="192" stroke="#22D3EE" marker-end="url(#mC)"/>
+    <path d="M 626 206 H 650 V 268 H 676" stroke="#22D3EE" marker-end="url(#mC)"/>
+    <line x1="886" y1="116" x2="926" y2="116" stroke="#F472B6" marker-end="url(#mK)"/>
+    <path d="M 1106 116 H 1246 V 160" stroke="#F472B6" marker-end="url(#mK)"/>
+    <line x1="886" y1="192" x2="1156" y2="192" stroke="#A78BFA" marker-end="url(#mP)"/>
+    <line x1="886" y1="268" x2="926" y2="268" stroke="#34D399" marker-end="url(#mG)"/>
+    <line x1="1336" y1="192" x2="1386" y2="192" stroke="#A78BFA" marker-end="url(#mP)"/>
+  </g>
+  <text x="1152" y="106" font-size="10" fill="#F9A8D4">alert_event</text>
+  <text x="1020" y="182" font-size="10" fill="#C4B5FD">ws_push 槽位路由</text>
+  <text x="1361" y="150" text-anchor="middle" font-size="10" fill="#C4B5FD">WSS 推送</text>
+
+  <!-- flow animation dots -->
+  <circle r="3" fill="#22D3EE" filter="url(#glowSm)" opacity="0.9">
+    <animateMotion dur="1.2s" repeatCount="indefinite" path="M 186 192 H 456"/>
+  </circle>
+  <circle r="3" fill="#22D3EE" filter="url(#glowSm)" opacity="0.9">
+    <animateMotion dur="1.8s" repeatCount="indefinite" path="M 626 192 H 1156"/>
+  </circle>
+  <circle r="3" fill="#F472B6" filter="url(#glowSm)" opacity="0.9">
+    <animateMotion dur="2s" begin="0.4s" repeatCount="indefinite" path="M 886 116 H 1246 V 160"/>
+  </circle>
+
+  <!-- row: source -->
+  <g>
+    <rect x="36" y="160" width="150" height="64" rx="12" fill="#0E1930" stroke="#34D399" stroke-opacity="0.5"/>
+    <rect x="36" y="160" width="150" height="3" rx="1.5" fill="#34D399"/>
+    <text x="111" y="187" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAF2FF">行情源</text>
+    <text x="111" y="207" text-anchor="middle" font-size="10" fill="#8FA3C0">东财 / MiniQMT / sim</text>
+  </g>
+  <!-- hq-gateway -->
+  <g>
+    <rect x="226" y="160" width="190" height="64" rx="12" fill="#0E1930" stroke="#22D3EE" stroke-opacity="0.5"/>
+    <rect x="226" y="160" width="190" height="3" rx="1.5" fill="url(#gGo) #22D3EE"/>
+    <text x="321" y="187" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAF2FF">hq-gateway</text>
+    <text x="321" y="207" text-anchor="middle" font-size="10" fill="#8FA3C0">解析 · 清洗 · 标准化</text>
+    <rect x="286" y="232" width="70" height="18" rx="9" fill="#22D3EE" fill-opacity="0.1" stroke="#22D3EE" stroke-opacity="0.5"/>
+    <text x="321" y="245" text-anchor="middle" font-size="9.5" fill="#7DD3FC">≈ 5ms</text>
+  </g>
+  <!-- kafka -->
+  <g>
+    <rect x="456" y="160" width="170" height="64" rx="12" fill="#0E1626" stroke="#A78BFA" stroke-opacity="0.5"/>
+    <rect x="456" y="160" width="170" height="3" rx="1.5" fill="url(#gKafka) #A78BFA"/>
+    <text x="541" y="187" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAF2FF">Kafka</text>
+    <text x="541" y="207" text-anchor="middle" font-size="10" fill="#8FA3C0">tick_raw · 削峰 · 重放</text>
+    <rect x="506" y="232" width="70" height="18" rx="9" fill="#A78BFA" fill-opacity="0.1" stroke="#A78BFA" stroke-opacity="0.5"/>
+    <text x="541" y="245" text-anchor="middle" font-size="9.5" fill="#C4B5FD">≈ 10ms/跳</text>
+  </g>
+  <!-- flink -->
+  <g>
+    <rect x="676" y="88" width="210" height="56" rx="12" fill="#0E1930" stroke="#FB7185" stroke-opacity="0.5"/>
+    <rect x="676" y="88" width="210" height="3" rx="1.5" fill="url(#gFlink) #FB7185"/>
+    <text x="781" y="112" text-anchor="middle" font-size="13" font-weight="600" fill="#EAF2FF">Flink 规则 / K 线</text>
+    <text x="781" y="131" text-anchor="middle" font-size="10" fill="#8FA3C0">规则命中 · K线聚合 · ≤300ms</text>
+  </g>
+  <!-- notify -->
+  <g>
+    <rect x="926" y="88" width="180" height="56" rx="12" fill="#0E1930" stroke="#FBBF24" stroke-opacity="0.5"/>
+    <rect x="926" y="88" width="180" height="3" rx="1.5" fill="#FBBF24"/>
+    <text x="1016" y="112" text-anchor="middle" font-size="13" font-weight="600" fill="#EAF2FF">notify</text>
+    <text x="1016" y="131" text-anchor="middle" font-size="10" fill="#8FA3C0">inbox 状态机 · ≈30ms</text>
+  </g>
+  <!-- quote-push -->
+  <g>
+    <rect x="676" y="164" width="210" height="56" rx="12" fill="#0E1930" stroke="#22D3EE" stroke-opacity="0.5"/>
+    <rect x="676" y="164" width="210" height="3" rx="1.5" fill="url(#gGo) #22D3EE"/>
+    <text x="781" y="188" text-anchor="middle" font-size="13" font-weight="600" fill="#EAF2FF">quote-push</text>
+    <text x="781" y="207" text-anchor="middle" font-size="10" fill="#8FA3C0">500ms 合并聚合 · 扇出</text>
+  </g>
+  <!-- ingest -->
+  <g>
+    <rect x="676" y="240" width="210" height="56" rx="12" fill="#0E1930" stroke="#60A5FA" stroke-opacity="0.5"/>
+    <rect x="676" y="240" width="210" height="3" rx="1.5" fill="#60A5FA"/>
+    <text x="781" y="264" text-anchor="middle" font-size="13" font-weight="600" fill="#EAF2FF">ingest-worker</text>
+    <text x="781" y="283" text-anchor="middle" font-size="10" fill="#8FA3C0">独立落库 · 可重放（异步）</text>
+  </g>
+  <!-- clickhouse -->
+  <g>
+    <rect x="926" y="240" width="180" height="56" rx="12" fill="#0E1930" stroke="#34D399" stroke-opacity="0.5"/>
+    <rect x="926" y="240" width="180" height="3" rx="1.5" fill="#34D399"/>
+    <text x="1016" y="264" text-anchor="middle" font-size="13" font-weight="600" fill="#EAF2FF">ClickHouse</text>
+    <text x="1016" y="283" text-anchor="middle" font-size="10" fill="#8FA3C0">时序明细 · 可滞后</text>
+  </g>
+  <!-- ws-gateway -->
+  <g>
+    <rect x="1156" y="160" width="180" height="64" rx="12" fill="#0E1930" stroke="#22D3EE" stroke-opacity="0.6"/>
+    <rect x="1156" y="160" width="180" height="3" rx="1.5" fill="url(#gGo) #22D3EE"/>
+    <text x="1246" y="187" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAF2FF">ws-gateway</text>
+    <text x="1246" y="207" text-anchor="middle" font-size="10" fill="#8FA3C0">订阅路由 · 分级推送</text>
+  </g>
+  <!-- client -->
+  <g>
+    <rect x="1386" y="160" width="178" height="64" rx="12" fill="#0E1930" stroke="#A78BFA" stroke-opacity="0.55"/>
+    <rect x="1386" y="160" width="178" height="3" rx="1.5" fill="#A78BFA"/>
+    <text x="1475" y="187" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAF2FF">客户端</text>
+    <text x="1475" y="207" text-anchor="middle" font-size="10" fill="#8FA3C0">PC / H5 · ACK 回执</text>
+  </g>
+
+  <!-- latency budget bar -->
+  <text x="36" y="330" font-size="11" fill="#8FA3C0">端到端延迟预算（价格类规则 · 段宽示意，非等比）</text>
+  <g font-size="10" text-anchor="middle">
+    <rect x="36" y="340" width="110" height="34" rx="8" fill="#22D3EE" fill-opacity="0.85"/>
+    <text x="91" y="361" fill="#06121F" font-weight="600">解析 5ms</text>
+    <rect x="146" y="340" width="140" height="34" fill="#A78BFA" fill-opacity="0.85"/>
+    <text x="216" y="361" fill="#0B1226" font-weight="600">Kafka 2×10ms</text>
+    <rect x="286" y="340" width="560" height="34" fill="#F472B6" fill-opacity="0.85"/>
+    <text x="566" y="361" fill="#0B1226" font-weight="600">Flink 规则 / K 线 ≤ 300ms</text>
+    <rect x="846" y="340" width="180" height="34" fill="#FBBF24" fill-opacity="0.85"/>
+    <text x="936" y="361" fill="#0B1226" font-weight="600">inbox / notify 30ms</text>
+    <rect x="1026" y="340" width="180" height="34" fill="#34D399" fill-opacity="0.85"/>
+    <text x="1116" y="361" fill="#0B1226" font-weight="600">ws_push + 下行 30ms</text>
+    <rect x="1206" y="340" width="358" height="34" rx="8" fill="#16233F"/>
+    <text x="1385" y="361" fill="#8FA3C0">延迟裕量</text>
+  </g>
+  <text x="36" y="400" font-size="14" font-weight="700" fill="#6EE7B7" filter="url(#glowSm)">P99 &lt; 400ms</text>
+  <text x="1564" y="400" text-anchor="end" font-size="11" fill="#8FA3C0">告警全链路目标 &lt; 2s（含重试裕量）</text>
+
+  <!-- stat pills -->
+  <g>
+    <rect x="36" y="424" width="496" height="64" rx="12" fill="#0E1930" stroke="#1C2C4E"/>
+    <text x="60" y="456" font-size="20" font-weight="700" fill="url(#gNum) #67E8F9">≥ 100K tick/s</text>
+    <text x="60" y="476" font-size="10.5" fill="#8FA3C0">持续 tick 吞吐 · 压测验收线</text>
+  </g>
+  <g>
+    <rect x="552" y="424" width="496" height="64" rx="12" fill="#0E1930" stroke="#1C2C4E"/>
+    <text x="576" y="456" font-size="20" font-weight="700" fill="#C4B5FD">1,000,000</text>
+    <text x="576" y="476" font-size="10.5" fill="#8FA3C0">WebSocket 长连接 · 架构目标</text>
+  </g>
+  <g>
+    <rect x="1068" y="424" width="496" height="64" rx="12" fill="#0E1930" stroke="#1C2C4E"/>
+    <text x="1092" y="456" font-size="20" font-weight="700" fill="#F9A8D4">P50 &lt; 500ms · P99 &lt; 2s</text>
+    <text x="1092" y="476" font-size="10.5" fill="#8FA3C0">预警端到端（源 → 客户端收到）</text>
+  </g>
+</svg>

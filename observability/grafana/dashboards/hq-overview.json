@@ -1,0 +1,73 @@
+{
+  "uid": "hq-overview",
+  "title": "hq-push-gate · 全链路总览",
+  "tags": ["hq-push-gate"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "服务在线数",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [{ "expr": "count(up{job=~\"hq-gateway|quote-push|notify|ws-gateway|outbox-publisher\"} == 1)", "legendFormat": "在线/总数" }],
+      "fieldConfig": { "defaults": { "min": 0, "max": 5, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 5 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "stat", "title": "WS 在线连接",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [{ "expr": "sum(ws_connections)", "legendFormat": "连接数" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "tick 接入速率",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [{ "expr": "sum(rate(hq_gateway_ticks_accepted_total[1m]))", "legendFormat": "tick/s" }],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "stat", "title": "15m 死信新增",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [{ "expr": "increase(notify_dead_letters_total[15m])", "legendFormat": "死信" }],
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "行情链路速率（接入 → 消费 → 扇出 → 入库）",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(rate(hq_gateway_ticks_accepted_total[1m]))", "legendFormat": "hq-gateway 接入" },
+        { "expr": "sum(rate(quote_push_ticks_consumed_total[1m]))", "legendFormat": "quote-push 消费" },
+        { "expr": "sum(rate(quote_push_ws_push_messages_total[1m]))", "legendFormat": "ws_push 扇出" },
+        { "expr": "sum(rate(ingest_ticks_written_total[1m]))", "legendFormat": "CK 入库" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "tick 拒绝与写入失败",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(rate(hq_gateway_ticks_rejected_total[5m]))", "legendFormat": "标准化拒绝" },
+        { "expr": "sum(rate(ingest_write_errors_total[5m]))", "legendFormat": "CK 写失败" },
+        { "expr": "sum(rate(quote_push_snapshot_errors_total[5m]))", "legendFormat": "Redis 快照失败" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "outbox 规则同步",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "hq-prom" },
+      "targets": [
+        { "expr": "sum(rate(outbox_published_total[5m]))", "legendFormat": "发布成功" },
+        { "expr": "sum(rate(outbox_publish_failures_total[5m]))", "legendFormat": "发布失败" },
+        { "expr": "sum(outbox_dead_total)", "legendFormat": "超限 FAILED" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+# ns-offline：归档与离线任务（无 HTTP 服务的批处理型工作负载）
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest-worker
+  namespace: ns-offline
+  labels: { app: ingest-worker }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 1 }
+  selector:
+    matchLabels: { app: ingest-worker }
+  template:
+    metadata:
+      labels: { app: ingest-worker }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/ingest-worker:0.1.0
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+          env:
+            - name: INGEST_CLICKHOUSE_DSN
+              value: clickhouse://clickhouse-hq.ns-infra.svc:9000/default?username=hqpush&password=hqpush
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ingest-worker
+  namespace: ns-offline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: ingest-worker }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: outbox-publisher
+  namespace: ns-offline
+  labels: { app: outbox-publisher }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 1 }
+  selector:
+    matchLabels: { app: outbox-publisher }
+  template:
+    metadata:
+      labels: { app: outbox-publisher }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/outbox-publisher:0.1.0
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: outbox-publisher
+  namespace: ns-offline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: outbox-publisher }

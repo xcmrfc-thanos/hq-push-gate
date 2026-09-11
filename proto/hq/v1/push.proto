@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package hq.v1;
+
+option go_package = "github.com/hqpush/gate/packages/contract/go/hq/v1;hqv1";
+option java_package = "com.hqpush.contract.hqv1";
+option java_multiple_files = true;
+option java_outer_classname = "PushProto";
+
+import "hq/v1/common.proto";
+import "hq/v1/market.proto";
+
+enum RuleType {
+  PRICE_ABOVE = 0;
+  PRICE_BELOW = 1;
+  PRICE_RANGE = 2;
+  PCT_CHANGE  = 3;
+  INDICATOR   = 4;
+}
+
+// 规则广播（Flink broadcast stream 消费）。
+// 冻结约束：不得携带 user_ids，用户订阅由业务库和 Redis 索引维护。
+message RuleMsg {
+  int64  rule_id      = 1;
+  int64  version      = 2;   // 单调递增，幂等去重
+  string op           = 3;   // UPSERT / DELETE
+  Market market       = 4;
+  string symbol       = 5;
+  RuleType type       = 6;
+  string condition    = 7;   // JSON: {"threshold":12.5} 或 {"indicator":"RSI","op":">","value":80}
+  int32  cooldown_sec = 8;   // 防抖冷却
+}
+
+// 告警事件（notify 消费）。event_id = rule_id + rule_version + trigger_window
+message AlertEvent {
+  string event_id     = 1;
+  int64  rule_id      = 2;
+  int64  version      = 3;
+  Market market       = 4;
+  string symbol       = 5;
+  string title        = 6;
+  string detail_json  = 7;   // 触发时快照：价格/指标值/时间
+  int64  trigger_ts   = 8;
+}
+
+// 一次事件面向一个用户的投递。delivery_id = event_id + user_id
+message AlertDelivery {
+  string delivery_id  = 1;
+  string event_id     = 2;
+  int64  user_id      = 3;
+  Market market       = 4;
+  string symbol       = 5;
+  string title        = 6;
+  string detail_json  = 7;
+  int64  trigger_ts   = 8;
+}
+
+// 固定 ws_push topic，按 gateway_slot 路由；消息同时携带 gateway_id
+message WsPushMsg {
+  string gateway_id   = 1;
+  uint32 gateway_slot = 2;
+  oneof payload {
+    QuoteBatch    quotes = 3;
+    AlertDelivery alert  = 4;
+    Kline         kline  = 5;
+  }
+}
+
+// 合并窗口内每 symbol 只保留最新
+message QuoteBatch {
+  repeated Tick ticks = 1;
+}

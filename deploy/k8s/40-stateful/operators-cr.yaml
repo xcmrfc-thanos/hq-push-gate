@@ -1,0 +1,239 @@
+# 有状态组件 CR（前置 Operator 见 README；全部落在 ns-infra，Flink 作业在 ns-realtime）
+# 2026-09-10 修订：Kafka 4.1 仅支持 KRaft（ZooKeeper 模式已移除）→ KafkaNodePool combined 池；
+# Topic 名对齐冻结契约（下划线，docs/04 §2 与 deploy/kafka-init.sh 一致，补齐 7 个全量）；
+# ClickHouse 补 2 shard × 2 replica layout；Flink 作业按 docs/02 §8 归位 ns-realtime。
+---
+# Kafka 节点池：KRaft combined（controller+broker 同节点，3 副本即仲裁多数）
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: combined
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  replicas: 3
+  roles: [controller, broker]
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 500Gi
+        class: standard
+        deleteClaim: false
+---
+# Kafka：Strimzi KRaft，RF=3 / min.insync.replicas=2（docs/06 §3.2）
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: hq
+  namespace: ns-infra
+spec:
+  kafka:
+    version: 4.1.0
+    metadataVersion: 4.1
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      min.insync.replicas: 2
+      auto.create.topics.enable: false
+    # 副本与存储由上方 KafkaNodePool 定义（KRaft 模式禁止在 Kafka CR 重复声明）
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+---
+# Topic 初始化（分区/保留期为冻结契约，docs/04 §2；与 deploy/kafka-init.sh 全量对齐，B24 修正连字符命名）
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: tick-raw
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: tick_raw
+  partitions: 24
+  replicas: 3
+  config: { retention.ms: 259200000 }
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: rule-bcast
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: rule_bcast
+  partitions: 1 # 广播语义单分区
+  replicas: 3
+  config: { retention.ms: 259200000 }
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: alert-event
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: alert_event
+  partitions: 12
+  replicas: 3
+  config: { retention.ms: 259200000 }
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: snapshot-kline
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: snapshot_kline
+  partitions: 12
+  replicas: 3
+  config: { retention.ms: 259200000 }
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: ws-push
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: ws_push
+  partitions: 64
+  replicas: 3
+  config: { retention.ms: 3600000 }
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: notify-retry
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: notify_retry
+  partitions: 6
+  replicas: 3
+  config: { retention.ms: 259200000 }
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dead-letter
+  namespace: ns-infra
+  labels: { strimzi.io/cluster: hq }
+spec:
+  topicName: dead_letter
+  partitions: 3
+  replicas: 3
+  config: { retention.ms: 604800000 }
+---
+# ClickHouse：Altinity Operator，2 shard × 2 replica（生产版恢复 Replicated 引擎）
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
+metadata:
+  name: hq
+  namespace: ns-infra
+spec:
+  configuration:
+    clusters:
+      - name: ck_cluster
+        layout:
+          shardsCount: 2
+          replicasCount: 2
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels: { clickhouse.altinity.com/app: chop, clickhouse.altinity.com/chi: hq }
+        schemaPolicy: { replicas: distributed_tables, shards: distributed_tables }
+    users:
+      hqpush/password: "" # 由流水线经 Secret 覆盖
+    profiles:
+      default/max_memory_usage: 10000000000
+  templates:
+    podTemplates:
+      - name: replica
+        distribution: OnePerHost
+        spec:
+          containers:
+            - name: clickhouse
+              image: clickhouse/clickhouse-server:26.3
+              resources:
+                requests: { cpu: "2", memory: 8Gi }
+                limits: { cpu: "4", memory: 16Gi }
+---
+# Redis：3 主 3 从（Redis Operator）
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisCluster
+metadata:
+  name: redis-hq
+  namespace: ns-infra
+spec:
+  clusterSize: 3
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.4.0
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 20Gi } }
+---
+# Flink：Kubernetes Operator，HA + 增量 checkpoint（docs/06 §3.2）
+# 作业：TickRuleJob（规则）与 KlineJob（1m 聚合）；镜像由 CI 产出（flink-shaded jar 内置）
+# 归属 ns-realtime（docs/02 §8 资源隔离：Flink 属实时池；B24 由 ns-offline 迁入）
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: tick-rule-job
+  namespace: ns-realtime
+spec:
+  image: ghcr.io/hqpush/flink-jobs:0.1.0
+  flinkVersion: v1_20
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "2"
+    state.checkpoints.dir: s3://hq-flink-ckpt/tick-rule/checkpoints
+    state.backend.incremental: "true"
+    execution.checkpointing.interval: "30s"
+  serviceAccount: flink
+  jobManager:
+    resource: { memory: 2048m, cpu: 1 }
+    highAvailabilityEnabled: true
+  taskManager:
+    resource: { memory: 2048m, cpu: 1 }
+  job:
+    jarURI: local:///opt/flink/usrlib/flink-rules-1.0.0.jar
+    entryClass: com.hqpush.flink.job.TickRuleJob
+    parallelism: 3
+    upgradeMode: savepoint
+---
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: kline-job
+  namespace: ns-realtime
+spec:
+  image: ghcr.io/hqpush/flink-jobs:0.1.0
+  flinkVersion: v1_20
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "2"
+    state.checkpoints.dir: s3://hq-flink-ckpt/kline/checkpoints
+    state.backend.incremental: "true"
+    execution.checkpointing.interval: "30s"
+  serviceAccount: flink
+  jobManager:
+    resource: { memory: 2048m, cpu: 1 }
+    highAvailabilityEnabled: true
+  taskManager:
+    resource: { memory: 2048m, cpu: 1 }
+  job:
+    jarURI: local:///opt/flink/usrlib/flink-rules-1.0.0.jar
+    entryClass: com.hqpush.flink.job.KlineJob
+    parallelism: 3
+    upgradeMode: savepoint

@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+httpx
+redis
+aiomysql
+cryptography
+prometheus-client

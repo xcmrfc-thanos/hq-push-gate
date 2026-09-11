@@ -1,0 +1,154 @@
+# ns-realtime：行情接入与聚合（Guaranteed QoS，最高优先级，docs/06 §3.3）
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hq-gateway
+  namespace: ns-realtime
+  labels: { app: hq-gateway }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: hq-gateway }
+  template:
+    metadata:
+      labels: { app: hq-gateway }
+    spec:
+      priorityClassName: realtime-high
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: hq-gateway }
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/hq-gateway:0.1.0
+          ports:
+            - { containerPort: 23021, name: http }
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+          env:
+            - name: HQ_GATEWAY_SOURCE
+              value: "off"
+          readinessProbe:
+            httpGet: { path: /readyz, port: 23021 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 23021 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hq-gateway
+  namespace: ns-realtime
+spec:
+  selector: { app: hq-gateway }
+  ports:
+    - { port: 23021, targetPort: 23021, name: http }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hq-gateway
+  namespace: ns-realtime
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: hq-gateway }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hq-gateway
+  namespace: ns-realtime
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: hq-gateway }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quote-push
+  namespace: ns-realtime
+  labels: { app: quote-push }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: quote-push }
+  template:
+    metadata:
+      labels: { app: quote-push }
+    spec:
+      priorityClassName: realtime-high
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: quote-push }
+      containers:
+        - name: app
+          image: ghcr.io/hqpush/quote-push:0.1.0
+          ports:
+            - { containerPort: 23022, name: http }
+          envFrom:
+            - configMapRef: { name: infra-endpoints }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 23022 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 23022 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quote-push
+  namespace: ns-realtime
+spec:
+  selector: { app: quote-push }
+  ports:
+    - { port: 23022, targetPort: 23022, name: http }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: quote-push
+  namespace: ns-realtime
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: quote-push }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: quote-push
+  namespace: ns-realtime
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: quote-push }
