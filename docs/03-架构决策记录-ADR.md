@@ -377,7 +377,7 @@
 - **状态**：已采纳
 - **决策**：U1 接受 access token 2h 不可吊销（现状，无黑名单）；**WS 侧加 5min 套餐复核**——ws-gateway 每 5 分钟对在线连接按 user_id 复核 user_vip 配额与状态，降级/封号后存量连接在下一复核周期内被摘除或降权。复核查询走 Redis 缓存（user_vip 变更时由 biz-service 失效该用户缓存键），避免逐连接打库。
 - **理由**：套餐降级/封号后存量 WS 连接持旧配额至重连是不可接受的（超配额推送 + 已封号用户仍收告警）；2h access 吊销需要黑名单/会话存储，U1 复杂度不值当，用 WS 侧定期复核兜底。
-- **实现注记**：✅ **已实现（B22，71933d5）**——ws-gateway EntitlementReconciler 按 ENTITLE_RECHECK（默认 5min）复核在线连接权益：降级后下一复核周期内差频降档（free 10s）并摘除越权 kline 周期；查询走 Redis `user_vip:{id}`（biz-service VipCache 写路径同步，未命中直查 MySQL 回填）；端到端实证：连接在线时套餐降级，15s 复核周期内 gap 3s→10s。docs/11 §7.1 决策记录同步。
+- **实现注记**：✅ **已实现（B22）**——ws-gateway EntitlementReconciler 按 ENTITLE_RECHECK（默认 5min）复核在线连接权益：降级后下一复核周期内差频降档（free 10s）并摘除越权 kline 周期；查询走 Redis `user_vip:{id}`（biz-service VipCache 写路径同步，未命中直查 MySQL 回填）；端到端实证：连接在线时套餐降级，15s 复核周期内 gap 3s→10s。docs/11 §7.1 决策记录同步。
 
 ### ADR-041 掘金式行情订阅：扇出归属与订阅路由
 
