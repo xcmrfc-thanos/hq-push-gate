@@ -1,4 +1,8 @@
-"""NL2Condition 用例（application 层）：LLM 解析 → 白名单校验 → 缓存 → CK 筛选。B16-A2 async 化。"""
+"""NL2Condition 用例（application 层）：LLM 解析 → 白名单校验 → 缓存 → CK 筛选。B16-A2 async 化。
+
+B27 数据飞轮：检索 top-3 相似样本注入 prompt；解析成功回写正样本（ACTIVE）、UNKNOWN 回流待标注。
+飞轮全链路 best-effort（repo 内部吞异常），不可用时行为与 B25 完全一致。
+"""
 from __future__ import annotations
 
 import asyncio
@@ -7,6 +11,7 @@ import json
 from ..domain.condition import Condition, cache_key, parse_condition, to_json
 from ..infrastructure.clickhouse import ClickHouseReader
 from ..infrastructure.fewshot import FEW_SHOTS
+from ..infrastructure.fewshot_repo import FewshotRepo
 from ..infrastructure.llm_gateway import LLMGateway
 from ..infrastructure.redis_cache import CondCache
 
@@ -34,10 +39,12 @@ class UnknownCondition(ValueError):
 
 
 class AIQueryService:
-    def __init__(self, llm: LLMGateway, ck: ClickHouseReader, cache: CondCache) -> None:
+    def __init__(self, llm: LLMGateway, ck: ClickHouseReader, cache: CondCache,
+                 fewshots: FewshotRepo | None = None) -> None:
         self.llm = llm
         self.ck = ck
         self.cache = cache
+        self.fewshots = fewshots
 
     async def query(self, question: str, limit: int = 50, client_ip: str | None = None) -> dict:
         q = question.strip()
@@ -59,8 +66,29 @@ class AIQueryService:
         return {**payload, "cached": False}
 
     async def _parse(self, question: str, client_ip: str | None = None) -> Condition:
-        text, _channel = await self.llm.complete(SYSTEM_PROMPT, question, client_ip=client_ip)
+        extra = ""
+        if self.fewshots is not None:
+            try:
+                shots = await self.fewshots.top_k(question, k=3)
+                if shots:
+                    lines = "\n".join(
+                        f'"{s["question"]}" -> {s["condition_json"]}' for s in shots)
+                    extra = f"\n\n相似问法参考（仅示例，输出仍须符合白名单结构）：\n{lines}"
+            except Exception:  # noqa: BLE001 检索失效 → 仅用内置 few-shot
+                extra = ""
+        text, _channel = await self.llm.complete(SYSTEM_PROMPT + extra, question, client_ip=client_ip)
         try:
-            return parse_condition(text)
+            cond = parse_condition(text)
         except ValueError as exc:
+            if self.fewshots is not None:
+                try:
+                    await self.fewshots.record_unknown(question)
+                except Exception:  # noqa: BLE001
+                    pass
             raise UnknownCondition(str(exc)) from exc
+        if self.fewshots is not None:
+            try:
+                await self.fewshots.record_resolved(question, to_json(cond))
+            except Exception:  # noqa: BLE001
+                pass
+        return cond

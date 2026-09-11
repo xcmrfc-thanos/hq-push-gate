@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Alert, Button, Card, Form, Input, InputNumber, Layout, Select, Space, Table, Tabs, Tag, Typography, message,
 } from "antd";
-import { ApiError, bizApi, getToken, llmApi, notifyApi, setToken, type ChannelRow, type LlmModel, type LlmProvider } from "./api";
+import { ApiError, bizApi, fewshotApi, getToken, llmApi, notifyApi, setToken, type ChannelRow, type FewshotSample, type LlmModel, type LlmProvider } from "./api";
 
 const { Header, Content } = Layout;
 
@@ -45,6 +45,7 @@ function ChannelTabs() {
         { key: "mail", label: "邮件渠道", children: <MailTab /> },
         { key: "sms", label: "短信渠道", children: <SmsTab /> },
         { key: "llm", label: "LLM 渠道", children: <LlmTab /> },
+        { key: "fewshot", label: "few-shot 样本", children: <FewshotTab /> },
         { key: "users", label: "用户套餐", children: <CommerceTab /> },
       ]}
     />
@@ -91,8 +92,105 @@ function CommerceTab() {
   );
 }
 
-function useChannels() {
-  const [rows, setRows] = useState<ChannelRow[]>([]);
+function FewshotTab() {
+  const [rows, setRows] = useState<FewshotSample[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [editing, setEditing] = useState<FewshotSample | null>(null);
+  const [editText, setEditText] = useState("");
+
+  const reload = useCallback(() => {
+    fewshotApi.list(statusFilter).then((d) => setRows(d.samples)).catch((e) => message.error(String(e)));
+    fewshotApi.stats().then((d) => setCounts(d.counts)).catch(() => {});
+  }, [statusFilter]);
+  useEffect(reload, [reload]);
+
+  const mark = async (id: number, status: string) => {
+    try {
+      await fewshotApi.patch(id, { status });
+      reload();
+    } catch (e) {
+      message.error(String(e));
+    }
+  };
+  const saveCondition = async () => {
+    if (!editing) return;
+    try {
+      await fewshotApi.patch(editing.id, { condition_json: editText });
+      message.success("条件已补录（白名单校验通过，状态回 PENDING，确认后转 ACTIVE）");
+      setEditing(null);
+      reload();
+    } catch (e) {
+      message.error(e instanceof ApiError ? e.message : String(e));
+    }
+  };
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Space wrap>
+        {Object.entries(counts).map(([k, v]) => (
+          <Tag key={k}>{k} = {v}</Tag>
+        ))}
+        <Select
+          allowClear
+          placeholder="按状态过滤"
+          style={{ width: 140 }}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={["ACTIVE", "PENDING", "REJECTED"].map((v) => ({ value: v, label: v }))}
+        />
+      </Space>
+      <Table<FewshotSample>
+        rowKey="id"
+        size="small"
+        pagination={{ pageSize: 20 }}
+        dataSource={rows}
+        columns={[
+          { title: "ID", dataIndex: "id", width: 60 },
+          { title: "问题", dataIndex: "question", ellipsis: true },
+          {
+            title: "条件", dataIndex: "condition_json", ellipsis: true,
+            render: (c: string | null) => <code style={{ fontSize: 12 }}>{c ?? "—"}</code>,
+          },
+          { title: "来源", dataIndex: "source", width: 130 },
+          {
+            title: "状态", dataIndex: "status", width: 100,
+            render: (s: string) => (
+              <Tag color={s === "ACTIVE" ? "green" : s === "PENDING" ? "orange" : "default"}>{s}</Tag>
+            ),
+          },
+          { title: "次数", dataIndex: "hit_count", width: 70 },
+          {
+            title: "操作", width: 260,
+            render: (_, r) => (
+              <Space>
+                <Button size="small" onClick={() => { setEditing(r); setEditText(r.condition_json ?? ""); }}>
+                  补条件
+                </Button>
+                <Button size="small" type="primary" ghost disabled={r.status === "ACTIVE"}
+                  onClick={() => void mark(r.id, "ACTIVE")}>ACTIVE</Button>
+                <Button size="small" danger disabled={r.status === "REJECTED"}
+                  onClick={() => void mark(r.id, "REJECTED")}>REJECT</Button>
+              </Space>
+            ),
+          },
+        ]}
+      />
+      {editing && (
+        <Card title={`补录条件 #${editing.id}（白名单 schema v2 校验，非法 400）`}>
+          <Input.TextArea rows={3} value={editText} onChange={(e) => setEditText(e.target.value)}
+            placeholder='{"type":"PCT_CHANGE","threshold":5,"direction":"up"}' />
+          <Space style={{ marginTop: 8 }}>
+            <Button type="primary" onClick={saveCondition}>保存</Button>
+            <Button onClick={() => setEditing(null)}>取消</Button>
+          </Space>
+        </Card>
+      )}
+    </Space>
+  );
+}
+
+function useChannels() {  const [rows, setRows] = useState<ChannelRow[]>([]);
   const reload = useCallback(() => {
     notifyApi.listChannels().then((d) => setRows(d.items)).catch((e) => message.error(String(e)));
   }, []);

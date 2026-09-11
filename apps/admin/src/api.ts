@@ -83,6 +83,25 @@ export const bizApi = {
     }).then(parseBiz),
 };
 
+// ai-query few-shot 样本（B27 数据飞轮：UNKNOWN 回流标注 / 正样本管理）
+export const fewshotApi = {
+  list: (status?: string) =>
+    call<{ samples: FewshotSample[] }>("/ai", `/internal/v1/fewshot${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  stats: () => call<{ counts: Record<string, number> }>("/ai", "/internal/v1/fewshot/stats"),
+  patch: (id: number, patch: { status?: string; condition_json?: string }) =>
+    call<null>(`/ai`, `/internal/v1/fewshot/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+};
+
+export interface FewshotSample {
+  id: number;
+  question: string;
+  condition_json: string | null;
+  source: string;
+  status: string;
+  hit_count: number;
+  created_at: string;
+}
+
 async function parseBiz(resp: Response): Promise<unknown> {
   const body = await resp.json().catch(() => ({ code: -1, msg: `http ${resp.status}` }));
   if (body.code !== 0) throw new ApiError(body.code, body.msg ?? "unknown", resp.status);

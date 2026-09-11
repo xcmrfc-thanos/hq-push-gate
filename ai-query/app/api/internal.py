@@ -1,4 +1,4 @@
-"""内部管理接口（X-Internal-Token，docs/11 §4 鉴权矩阵）：llm_provider/llm_model CRUD。
+"""内部管理接口（X-Internal-Token，docs/11 §4 鉴权矩阵）：llm_provider/llm_model CRUD + fewshot 标注。
 
 - INTERNAL_TOKEN 未配置 → 整组 403（fail-closed，docs/11 §4）；
 - token 校验恒时比较（hmac.compare_digest）；
@@ -15,9 +15,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from ..domain.condition import parse_condition, to_json
 from ..infrastructure.secrets import SecretError, encrypt, mask_secret, validate_base_url
 
 router = APIRouter(prefix="/internal/v1/llm")
+fewshot_router = APIRouter(prefix="/internal/v1/fewshot")
 
 _MODEL_TYPES = ("chat", "embedding", "image")
 
@@ -226,4 +228,59 @@ async def update_model(model_id: int, req: ModelPatch, request: Request):
     if n == 0:
         return _err(40401, "model not found", 404)
     _repo(request).invalidate()
+    return {"code": 0, "msg": "ok"}
+
+
+# ---- B27：fewshot 样本管理（数据飞轮人工标注） ----
+
+def _fs(request: Request):
+    return getattr(request.app.state, "fewshots", None)
+
+
+def _guarded_pool(request: Request):
+    ok, code = _guard(request)
+    if not ok:
+        return None, _err(code, "unauthorized", 401 if code == 40103 else 403)
+    if _pool(request) is None:
+        return None, _err(50310, "mysql pool disabled", 503)
+    return _fs(request), None
+
+
+@fewshot_router.get("")
+async def list_fewshot(request: Request, status: str | None = None, limit: int = 100):
+    fs, err = _guarded_pool(request)
+    if err is not None:
+        return err
+    rows = await fs.list_page(status, limit=min(max(limit, 1), 500))
+    return {"code": 0, "msg": "ok", "data": {"samples": rows}}
+
+
+@fewshot_router.get("/stats")
+async def fewshot_stats(request: Request):
+    fs, err = _guarded_pool(request)
+    if err is not None:
+        return err
+    return {"code": 0, "msg": "ok", "data": {"counts": await fs.stats()}}
+
+
+class FewshotPatch(BaseModel):
+    status: str | None = Field(default=None, pattern="^(ACTIVE|PENDING|REJECTED)$")
+    condition_json: str | None = None  # 标注补条件：过白名单校验后存规范形
+
+
+@fewshot_router.patch("/{sample_id}")
+async def patch_fewshot(sample_id: int, req: FewshotPatch, request: Request):
+    fs, err = _guarded_pool(request)
+    if err is not None:
+        return err
+    if req.status is None and req.condition_json is None:
+        return _err(40010, "nothing to update", 400)
+    if req.condition_json is not None:
+        try:
+            canonical = to_json(parse_condition(req.condition_json))
+        except ValueError as exc:
+            return _err(40010, f"condition_json rejected by whitelist: {exc}", 400)
+        await fs.set_condition(sample_id, canonical)
+    if req.status is not None:
+        await fs.set_status(sample_id, req.status)
     return {"code": 0, "msg": "ok"}

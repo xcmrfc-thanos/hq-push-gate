@@ -20,9 +20,11 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 
 from .api.internal import router as internal_router
+from .api.internal import fewshot_router
 from .api.routes import router
 from .application.nl2cond import AIQueryService
 from .infrastructure.clickhouse import ClickHouseReader
+from .infrastructure.fewshot_repo import FewshotRepo
 from .infrastructure.llm_gateway import ChannelState, GatewayConfig, LLMGateway, Quota
 from .infrastructure.llm_repo import ChannelRepo
 from .infrastructure.redis_cache import CondCache
@@ -32,6 +34,7 @@ log = logging.getLogger("ai-query")
 app = FastAPI(title="hq-push-gate ai-query", version="0.2.0")
 app.include_router(router)
 app.include_router(internal_router)
+app.include_router(fewshot_router)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -101,10 +104,12 @@ async def lifespan(app: FastAPI):
         cfg=GatewayConfig(max_concurrency=int(_env("LLM_MAX_CONCURRENCY", "10"))),
     )
     prewarm_task = asyncio.create_task(gw.prewarm_loop())
-    app.state.svc = AIQueryService(llm=gw, ck=ClickHouseReader(), cache=CondCache())
+    fewshots = FewshotRepo(pool)
+    app.state.svc = AIQueryService(llm=gw, ck=ClickHouseReader(), cache=CondCache(), fewshots=fewshots)
     app.state.gw = gw
     app.state.pool = pool
     app.state.repo = repo
+    app.state.fewshots = fewshots
     try:
         yield
     finally:
