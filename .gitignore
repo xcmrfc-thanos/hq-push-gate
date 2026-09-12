@@ -74,8 +74,15 @@ AGENTS.md
 
 # OS
 Thumbs.db
+desktop.ini
 .DS_Store
 ~$*
+
+# 编辑器/补丁残留（IDEA 模块文件、vim 交换、补丁应用产物）
+*.iml
+*.swp
+*.orig
+*.rej
 
 # 本地临时验证脚本（不入库）
 temp/
