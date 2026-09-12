@@ -3,11 +3,14 @@ import type { AlertPush } from "@hq/shared";
 
 export interface AlertItem extends AlertPush {
   receivedAt: number;
+  acked?: boolean;
 }
 
 interface AlertState {
   items: AlertItem[];
   push: (list: AlertPush[]) => void;
+  /** 客户端 ACK：本地置灰（服务端状态由 ackAlert 转发兜底） */
+  markAcked: (deliveryIds: string[]) => void;
 }
 
 export const useAlertStore = create<AlertState>((set) => ({
@@ -15,6 +18,12 @@ export const useAlertStore = create<AlertState>((set) => ({
   push: (list) =>
     set((s) => ({
       items: [...list.map((a) => ({ ...a, receivedAt: Date.now() })), ...s.items].slice(0, 200),
+    })),
+  markAcked: (deliveryIds) =>
+    set((s) => ({
+      items: s.items.map((a) =>
+        deliveryIds.includes(a.deliveryId) ? { ...a, acked: true } : a,
+      ),
     })),
 }));
 

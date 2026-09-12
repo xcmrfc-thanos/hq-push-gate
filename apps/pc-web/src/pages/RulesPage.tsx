@@ -1,4 +1,4 @@
-import { MARKETS, MARKET_LABELS } from "@hq/shared";
+import { MARKETS, MARKET_LABELS, describeCondition } from "@hq/shared";
 import type { AlertRule } from "@hq/shared";
 import { Button, Card, Empty, Form, InputNumber, Popconfirm, Select, Switch, Table, message } from "antd";
 import { useEffect, useState } from "react";
@@ -114,7 +114,17 @@ export function RulesPage() {
           { title: "市场", dataIndex: "market", render: (m: string) => MARKET_LABELS[m as keyof typeof MARKET_LABELS] ?? m },
           { title: "代码", dataIndex: "symbol" },
           { title: "类型", dataIndex: "ruleType", render: (t: string) => ruleTypes.find((x) => x.value === t)?.label ?? t },
-          { title: "条件", dataIndex: "condition" },
+          {
+            title: "条件", dataIndex: "condition", ellipsis: true,
+            render: (c: string, r) => {
+              try {
+                // 规则侧 type 在 ruleType 字段，条件 JSON 无 type（docs/04 RuleMsg 契约）
+                return describeCondition({ type: r.ruleType, ...JSON.parse(c) });
+              } catch {
+                return c;
+              }
+            },
+          },
           { title: "冷却(秒)", dataIndex: "cooldownSec" },
           { title: "版本", dataIndex: "version" },
           { title: "启用", dataIndex: "status", render: (s: number, r) => (

@@ -176,3 +176,71 @@ export function conditionToRuleInput(
     rule: { market, symbol, ruleType, condition: JSON.stringify(ruleCond), cooldownSec, status: 1 },
   };
 }
+
+/** A 股习惯色：红涨绿跌平盘灰（供表格/列表涨跌幅着色） */
+export function pctColor(pct: number): string {
+  if (pct > 0) return "#cf1322";
+  if (pct < 0) return "#3f8600";
+  return "#8c8c8c";
+}
+
+/** 涨跌幅带符号展示（"+3.20%" / "-1.00%"） */
+export function fmtPct(pct: number): string {
+  return `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
+}
+
+/** 条件中文化（B29 编排器/规则表/结果预览共用；输入为对象或 JSON 字符串）。
+ * 未知形状回退原文，绝不抛错——展示层不阻塞业务。 */
+export function describeCondition(condition: Record<string, unknown> | string): string {
+  let node: Record<string, unknown>;
+  if (typeof condition === "string") {
+    try {
+      node = JSON.parse(condition) as Record<string, unknown>;
+    } catch {
+      return condition;
+    }
+  } else {
+    node = condition;
+  }
+  try {
+    return describeNode(node);
+  } catch {
+    try {
+      return JSON.stringify(node);
+    } catch {
+      return String(condition);
+    }
+  }
+}
+
+function describeNode(node: Record<string, unknown>): string {
+  if ("all" in node || "any" in node) {
+    const key = "all" in node ? "all" : "any";
+    const children = (node[key] as Record<string, unknown>[]) ?? [];
+    const joiner = key === "all" ? " 且 " : " 或 ";
+    return children.map(describeNode).join(joiner);
+  }
+  const num = (k: string): number => Number(node[k] ?? 0);
+  switch (node.type) {
+    case "PRICE_ABOVE":
+      return `价格 > ${num("threshold")} 元`;
+    case "PRICE_BELOW":
+      return `价格 < ${num("threshold")} 元`;
+    case "PRICE_RANGE":
+      return `${num("low")} ≤ 价格 ≤ ${num("high")} 元`;
+    case "PCT_CHANGE": {
+      const t = num("threshold");
+      const limit = node.limit === true ? "接近涨跌停·" : "";
+      if (node.direction === "up") return `${limit}涨幅 ≥ ${t}%`;
+      if (node.direction === "down") return `${limit}跌幅 ≥ ${t}%`;
+      return `${limit}涨跌幅 ≥ ${t}%`;
+    }
+    case "VOLUME_ABOVE":
+      return `成交量 > ${fmtVol(num("threshold"))}`;
+    case "INDICATOR":
+      if (node.indicator === "VOLUME") return `累计成交量 > ${fmtVol(num("value"))}`;
+      return `${String(node.indicator ?? "指标")} ${String(node.op ?? ">")} ${num("value")}`;
+    default:
+      return typeof node.type === "string" ? `${node.type}（未知条件）` : "未知条件";
+  }
+}

@@ -1,7 +1,7 @@
 import { Button, Input, List, Picker, Radio, Selector, Toast } from "antd-mobile";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
-import { conditionToRuleInput } from "@hq/shared";
+import { conditionToRuleInput, describeCondition, fmtPct, fmtPrice, fmtVol, pctColor } from "@hq/shared";
 import type { AIMeta, AIQueryResp, AITypeMeta } from "@hq/shared";
 import { apiClient } from "../services/socket";
 
@@ -120,8 +120,8 @@ export function AIScreenPage() {
 
       {resp && (
         <>
-          <div style={{ fontSize: 12, color: "#888", margin: "8px 0", wordBreak: "break-all" }}>
-            条件：{JSON.stringify(resp.condition)}{isGroup ? "｜组合条件不支持订阅" : ""}
+          <div style={{ fontSize: 12, color: "#1677ff", margin: "8px 0", wordBreak: "break-all" }}>
+            条件：{describeCondition(resp.condition)}{isGroup ? "｜组合条件不支持订阅" : ""}
           </div>
           <List>
             {resp.symbols.map((r) => (
@@ -133,9 +133,9 @@ export function AIScreenPage() {
                     订阅
                   </Button>
                 }
-                description={`价 ${r.last}｜涨跌 ${r.pct}%｜量 ${r.volume.toFixed(0)}`}
+                description={`价 ${fmtPrice(r.last)}｜涨跌 ${fmtPct(r.pct)}｜量 ${fmtVol(r.volume)}`}
               >
-                {r.symbol}
+                <span style={{ color: pctColor(r.pct), fontWeight: 600 }}>{r.symbol}</span>
               </List.Item>
             ))}
           </List>

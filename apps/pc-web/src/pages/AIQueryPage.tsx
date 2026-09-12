@@ -1,4 +1,4 @@
-import { MARKETS, MARKET_LABELS, conditionToRuleInput } from "@hq/shared";
+import { MARKETS, MARKET_LABELS, conditionToRuleInput, describeCondition, fmtPct, fmtPrice, fmtVol, pctColor } from "@hq/shared";
 import type { AIMeta, AIQueryResp } from "@hq/shared";
 import { Alert, Button, Card, Input, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
 import { useCallback, useEffect, useState } from "react";
@@ -109,20 +109,29 @@ export function AIQueryPage() {
 
       {resp && (
         <Card title="选股结果" extra={
-          <Space>
-            <Tag color="blue">{JSON.stringify(resp.condition)}</Tag>
+          <Space wrap>
+            <Tag color="blue" style={{ maxWidth: 480, whiteSpace: "normal", height: "auto" }}>
+              {describeCondition(resp.condition)}
+            </Tag>
+            <Tag>v{resp.condition_version}</Tag>
             {resp.cached && <Tag color="green">缓存</Tag>}
           </Space>
         }>
           <Table
             rowKey="symbol" size="small" pagination={{ pageSize: 10 }}
+            loading={screenLoading}
             dataSource={resp.symbols}
             locale={{ emptyText: "没有匹配的标的" }}
             columns={[
               { title: "代码", dataIndex: "symbol" },
-              { title: "最新价", dataIndex: "last" },
-              { title: "涨跌幅%", dataIndex: "pct" },
-              { title: "成交量", dataIndex: "volume", render: (v: number) => v.toLocaleString() },
+              { title: "最新价", dataIndex: "last", render: (v: number) => fmtPrice(v) },
+              {
+                title: "涨跌幅%", dataIndex: "pct",
+                render: (v: number) => (
+                  <span className="num" style={{ fontWeight: 600, color: pctColor(v) }}>{fmtPct(v)}</span>
+                ),
+              },
+              { title: "成交量", dataIndex: "volume", render: (v: number) => fmtVol(v) },
               {
                 title: "订阅预警", width: 130,
                 render: (_: unknown, row) => (
