@@ -2,6 +2,7 @@ import { MARKETS, MARKET_LABELS, conditionToRuleInput, describeCondition, fmtPct
 import type { AIMeta, AIQueryResp } from "@hq/shared";
 import { Alert, Button, Card, Input, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ConditionBuilder, groupChildren, isGroupNode, validateNode } from "../components/ConditionBuilder";
 import type { CondNode } from "../components/ConditionBuilder";
 import { apiClient } from "../services/socket";
@@ -10,6 +11,7 @@ import { apiClient } from "../services/socket";
  * AI 一句话生成条件一键填入继续编辑；立即选股走 /ai/screen 条件直查（无 LLM）；
  * 单票订阅：单条件透传 /rules（组合条件规则侧扁平，仅查询不支持订阅）。 */
 export function AIQueryPage() {
+  const nav = useNavigate();
   const [meta, setMeta] = useState<AIMeta | null>(null);
   const [metaError, setMetaError] = useState(false);
   const [cond, setCond] = useState<CondNode | null>(null);
@@ -123,7 +125,13 @@ export function AIQueryPage() {
             dataSource={resp.symbols}
             locale={{ emptyText: "没有匹配的标的" }}
             columns={[
-              { title: "代码", dataIndex: "symbol" },
+              {
+                title: "代码", dataIndex: "symbol",
+                render: (v: string) => (
+                  <Button type="link" style={{ paddingInline: 0 }}
+                    onClick={() => nav(`/chart?symbol=${market}:${v}`)}>{v}</Button>
+                ),
+              },
               { title: "最新价", dataIndex: "last", render: (v: number) => fmtPrice(v) },
               {
                 title: "涨跌幅%", dataIndex: "pct",

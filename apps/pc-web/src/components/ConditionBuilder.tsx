@@ -154,32 +154,40 @@ function GroupCard({ meta, node, onChange, onRemove, depth }: NodeProps) {
       }
     >
       <Space direction="vertical" size={6} style={{ width: "100%" }}>
-        {children.map((child, i) =>
-          isGroupNode(child) ? (
+        {children.map((child, i) => {
+          const patchAt = (n: CondNode) => {
+            const list = [...children];
+            list[i] = n;
+            setChildren(list);
+          };
+          const removeAt = () => setChildren(children.filter((_, j) => j !== i));
+          const move = (delta: number) => {
+            const j = i + delta;
+            if (j < 0 || j >= children.length) return;
+            const list = [...children];
+            [list[i], list[j]] = [list[j], list[i]];
+            setChildren(list);
+          };
+          const orderBtns = (
+            <Space size={0}>
+              <Button size="small" type="text" disabled={i === 0} onClick={() => move(-1)}>↑</Button>
+              <Button size="small" type="text" disabled={i === children.length - 1} onClick={() => move(1)}>↓</Button>
+            </Space>
+          );
+          return isGroupNode(child) ? (
             <GroupCard
               key={i} meta={meta} node={child} depth={depth + 1}
-              onChange={(n) => {
-                const list = [...children];
-                list[i] = n;
-                setChildren(list);
-              }}
-              onRemove={() => setChildren(children.filter((_, j) => j !== i))}
+              onChange={patchAt}
+              onRemove={removeAt}
             />
           ) : (
             <Space key={i} size={4} style={{ display: "flex" }}>
-              <LeafCard
-                meta={meta} node={child} depth={depth + 1}
-                onChange={(n) => {
-                  const list = [...children];
-                  list[i] = n;
-                  setChildren(list);
-                }}
-              />
-              <Button size="small" type="text" danger
-                onClick={() => setChildren(children.filter((_, j) => j !== i))}>✕</Button>
+              <LeafCard meta={meta} node={child} depth={depth + 1} onChange={patchAt} />
+              {orderBtns}
+              <Button size="small" type="text" danger onClick={removeAt}>✕</Button>
             </Space>
-          ),
-        )}
+          );
+        })}
         <Space size={4}>
           <Button size="small" type="dashed" disabled={children.length >= 10}
             onClick={() => setChildren([...children, defaultLeaf(meta)])}>
