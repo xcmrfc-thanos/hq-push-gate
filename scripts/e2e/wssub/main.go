@@ -16,11 +16,12 @@ import (
 
 func main() {
 	addr := flag.String("addr", "ws://127.0.0.1:23024/ws", "ws-gateway 地址")
-	secret := flag.String("secret", "dev-jwt-secret", "HS256 密钥（签 uid=1 正式 token）")
+	secret := flag.String("secret", "dev-jwt-secret", "HS256 密钥（正式 token）")
+	uid := flag.Int("uid", 1, "用户 uid（推送按投递归属路由到对应连接）")
 	duration := flag.Duration("duration", 90*time.Second, "订阅时长")
 	flag.Parse()
 
-	token := signJWT(*secret, 1)
+	token := signJWT(*secret, *uid)
 	url := *addr + "?token=" + token
 	c, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
@@ -55,12 +56,20 @@ func main() {
 		}
 		_ = json.Unmarshal(msg, &envelope)
 		n[envelope.Type]++
-		if envelope.Type == "kline" {
-			fmt.Println("KLINE FRAME:", string(msg))
+		fmt.Printf("E2E-DEBUG frame type=%s len=%d\n", envelope.Type, len(msg)) // TODO(B26-e2e): 观测后移除
+		if envelope.Type == "alert" || envelope.Type == "kline" {
+			fmt.Printf("E2E-DEBUG payload: %s\n", msg[:min(len(msg), 300)])
 		}
 	}
 	fmt.Printf("counts: quotes=%d kline=%d alert=%d other=%d\n",
 		n["quote"], n["kline"], n["alert"], n[""]+n["sys"]+n["pong"])
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func base64RawURL(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }

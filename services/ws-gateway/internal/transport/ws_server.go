@@ -213,6 +213,7 @@ func (s *WSServer) serveConn(ctx context.Context, conn *websocket.Conn, userID i
 			if len(added) > 0 {
 				s.hub.LinkSym(c, added...)
 				_ = s.subs.Subscribe(ctx, added...)
+				s.log.Info("sub registered", "user_id", userID, "syms", added)
 			}
 			// channels 订阅（docs/04 §7 B21 启用预埋字段）：kline@<period_min>，quote@3s 为默认行为无需注册
 			// B22 权益门控：free 仅 kline@1m，超档 channel 忽略；vip 全周期
@@ -286,7 +287,11 @@ func (s *WSServer) write(conn *websocket.Conn, typ string, data any) bool {
 		return true
 	}
 	_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	return conn.WriteMessage(websocket.TextMessage, payload) == nil
+	ok := conn.WriteMessage(websocket.TextMessage, payload) == nil
+	if typ == wsproto.TypeAlert {
+		s.log.Info("alert frame written", "bytes", len(payload), "ok", ok)
+	}
+	return ok
 }
 
 // klineChannelPeriods channels 命名（docs/04 §7 B21）：kline@<period_min>。

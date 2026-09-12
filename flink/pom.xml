@@ -51,6 +51,13 @@
       <artifactId>jackson-databind</artifactId>
       <version>2.18.2</version>
     </dependency>
+    <!-- 显式钉 core 与 databind 同版：flink-connector-kafka 传递的 core 2.15.2 会抢占解析，
+         运行时 NoSuchMethodError getNumberTypeFP（2026-09-12 B26 联调实测修复） -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>2.18.2</version>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>

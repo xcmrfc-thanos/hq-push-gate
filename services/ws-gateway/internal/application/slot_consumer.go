@@ -174,7 +174,10 @@ func (c *SlotConsumer) handle(ctx context.Context, m kafka.Message) bool {
 			Detail:     p.Alert.DetailJson,
 			TS:         p.Alert.TriggerTs,
 		}
-		if c.sink.DeliverAlert(p.Alert.UserId, a) && c.alertsSent != nil {
+		delivered := c.sink.DeliverAlert(p.Alert.UserId, a)
+		c.log.Info("alert consumed from ws_push", "user_id", p.Alert.UserId, "rule_id", a.RuleID,
+			"delivery_id", a.DeliveryID, "delivered", delivered)
+		if delivered && c.alertsSent != nil {
 			c.alertsSent()
 		}
 		return true
