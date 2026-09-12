@@ -1,13 +1,16 @@
 """FastAPI 路由（api 层，docs/04 §6 信封 {code,msg,data}；错误响应带正确 HTTP status，docs/11 §3）。"""
 from __future__ import annotations
 
+import asyncio
+import json
+
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 
 from ..application.nl2cond import AIQueryService, UnknownCondition
-from ..domain.condition import MAX_PRICE, MAX_PCT, MAX_VOLUME
+from ..domain.condition import MAX_PRICE, MAX_PCT, MAX_VOLUME, parse_condition, to_json
 from ..infrastructure.llm import LLMError
 
 router = APIRouter()
@@ -105,3 +108,26 @@ async def ai_query(req: QueryReq, request: Request) -> Response:
     except Exception:  # noqa: BLE001 LLM/CK 上游故障降级为 5xxxx
         return JSONResponse({"code": 50310, "msg": "ai query unavailable"}, status_code=503)
     return {"code": 0, "msg": "ok", "data": data}
+
+
+class ScreenReq(BaseModel):
+    condition: dict
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+@router.post("/api/v1/ai/screen")
+async def ai_screen(req: ScreenReq, request: Request) -> Response:
+    """条件直查（B29 条件编排器执行口）：积木编译出的规范化条件跳过 LLM 直接筛 CK，
+    与 /ai/query 共用白名单校验/组合树/CK 片段构建（数值参数绑定，支持 all/any 组合树）。"""
+    try:
+        cond = parse_condition(req.condition)
+    except ValueError as exc:
+        return JSONResponse({"code": 42201, "msg": f"unsupported condition: {exc}"}, status_code=422)
+    try:
+        rows = await asyncio.to_thread(get_service(request).ck.screen, cond, limit=req.limit)
+    except Exception:  # noqa: BLE001 CK 上游故障降级为 5xxxx
+        return JSONResponse({"code": 50310, "msg": "ai query unavailable"}, status_code=503)
+    return {
+        "code": 0, "msg": "ok",
+        "data": {"condition": json.loads(to_json(cond)), "symbols": rows, "condition_version": 2},
+    }

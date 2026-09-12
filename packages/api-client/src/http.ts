@@ -106,6 +106,14 @@ export class ApiClient {
     return this.request<AIMeta>("/api/v1/ai/meta");
   }
 
+  /** 条件直查（B29 编排器执行口）：积木编译出的条件跳过 LLM 直接筛 CK */
+  aiScreen(condition: Record<string, unknown>, limit = 50) {
+    return this.request<AIQueryResp>("/api/v1/ai/screen", {
+      method: "POST",
+      body: JSON.stringify({ condition, limit }),
+    });
+  }
+
   // ---- rules ----
   listRules() {
     return this.request<AlertRule[]>("/api/v1/rules");

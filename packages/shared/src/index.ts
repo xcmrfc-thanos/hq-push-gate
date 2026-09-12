@@ -117,6 +117,9 @@ export interface AIFieldMeta {
   type: "float" | "enum" | "bool";
   gt?: number;
   le?: number;
+  /** ne/ale：非零/绝对值上限口径（PCT_CHANGE threshold: ne=0, ale=100） */
+  ne?: number;
+  ale?: number;
   values?: string[];
   required?: boolean;
 }

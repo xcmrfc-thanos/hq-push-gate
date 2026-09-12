@@ -191,6 +191,31 @@ def test_query_payload_carries_condition_version():
     assert out["condition_version"] == 2
 
 
+# ---- B29：条件直查端点（编排器执行口，跳过 LLM） ----
+
+def test_screen_endpoint_condition_direct():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    ck = FakeCK([{"symbol": "600519", "last": 20.0, "pct": 1.0, "volume": 1}])
+    app.state.svc = AIQueryService(FakeLLM('{"type":"UNKNOWN"}'), ck, FakeCache())
+    c = TestClient(app)
+
+    r = c.post("/api/v1/ai/screen", json={"condition": {"type": "PRICE_ABOVE", "threshold": 1}, "limit": 10})
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["condition_version"] == 2 and d["symbols"][0]["symbol"] == "600519"
+
+    g = c.post("/api/v1/ai/screen", json={
+        "condition": {"all": [{"type": "PRICE_ABOVE", "threshold": 1},
+                              {"type": "PRICE_BELOW", "threshold": 50}]}})
+    assert g.status_code == 200 and ck.last_cond is not None
+
+    bad = c.post("/api/v1/ai/screen", json={"condition": {"type": "UNKNOWN"}})
+    assert bad.status_code == 422
+
+
 # ---- 用例编排（mock 上游） ----
 
 class FakeLLM:
